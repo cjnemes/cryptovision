@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { ConnectButton } from "@/components/wallet/ConnectButton"
 
 export default function Home() {
   return (
@@ -13,7 +14,7 @@ export default function Home() {
             </div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">CryptoVision</h1>
           </div>
-          <Button>Connect Wallet</Button>
+          <ConnectButton />
         </div>
       </header>
 
