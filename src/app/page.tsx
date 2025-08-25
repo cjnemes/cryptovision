@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ConnectButton } from "@/components/wallet/ConnectButton"
@@ -30,8 +31,12 @@ export default function Home() {
             across multiple wallets and protocols in one unified dashboard.
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg">Get Started</Button>
-            <Button variant="outline" size="lg">View Demo</Button>
+            <Link href="/portfolio">
+              <Button size="lg">Get Started</Button>
+            </Link>
+            <Link href="/portfolio">
+              <Button variant="outline" size="lg">View Portfolio</Button>
+            </Link>
           </div>
         </div>
 
