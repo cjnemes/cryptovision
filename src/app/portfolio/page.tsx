@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConnectButton } from "@/components/wallet/ConnectButton"
 import { TokenList } from "@/components/portfolio/TokenList"
 import { PortfolioStats } from "@/components/portfolio/PortfolioStats"
+import { DeFiPositions } from "@/components/portfolio/DeFiPositions"
 import { useTokenBalances } from "@/hooks/useTokenBalances"
 
 export default function PortfolioPage() {
@@ -78,7 +79,7 @@ export default function PortfolioPage() {
         />
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
           {/* Token Holdings */}
           <TokenList 
             balances={balances}
@@ -87,22 +88,12 @@ export default function PortfolioPage() {
           />
 
           {/* DeFi Positions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>DeFi Positions</CardTitle>
-              <CardDescription>
-                Your positions in decentralized finance protocols
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🌾</span>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400">Loading DeFi positions...</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              DeFi Positions
+            </h3>
+            <DeFiPositions />
+          </div>
         </div>
       </main>
     </div>

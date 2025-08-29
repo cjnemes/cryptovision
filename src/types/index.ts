@@ -19,12 +19,71 @@ export interface TokenBalance {
 }
 
 export interface DeFiPosition {
-  protocol: string;
+  id: string;
+  protocol: 'uniswap-v3' | 'aave' | 'compound' | 'lido' | 'curve' | 'aerodrome' | 'moonwell';
   type: 'lending' | 'liquidity' | 'staking' | 'farming';
-  token: TokenBalance;
+  tokens: TokenBalance[];
   apy: number;
   value: number;
   claimable?: number;
+  metadata?: UniswapV3Position | AavePosition | StakingPosition | AerodromePosition | MoonwellPosition;
+}
+
+export interface UniswapV3Position {
+  tokenId: string;
+  pool: string;
+  token0: TokenBalance;
+  token1: TokenBalance;
+  fee: number;
+  tickLower: number;
+  tickUpper: number;
+  liquidity: string;
+  uncollectedFees: {
+    token0: string;
+    token1: string;
+  };
+  inRange: boolean;
+}
+
+export interface AavePosition {
+  market: string;
+  supplied: TokenBalance[];
+  borrowed: TokenBalance[];
+  healthFactor: number;
+  netAPY: number;
+}
+
+export interface StakingPosition {
+  validator?: string;
+  stakedAmount: string;
+  rewards: string;
+  unstakingPeriod?: number;
+}
+
+export interface AerodromePosition {
+  pairAddress: string;
+  token0: TokenBalance;
+  token1: TokenBalance;
+  isStable: boolean;
+  gauge?: {
+    address: string;
+    rewards: TokenBalance[];
+    emissions: number;
+  };
+  lpTokenBalance: string;
+  totalSupply: string;
+}
+
+export interface MoonwellPosition {
+  market: string;
+  asset: TokenBalance;
+  supplied?: string;
+  borrowed?: string;
+  supplyAPY: number;
+  borrowAPY?: number;
+  collateralFactor: number;
+  isCollateral: boolean;
+  rewardsEarned?: TokenBalance[];
 }
 
 export interface PortfolioData {
