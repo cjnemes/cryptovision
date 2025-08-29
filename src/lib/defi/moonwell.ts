@@ -3,7 +3,14 @@ import { DeFiPosition, MoonwellPosition, TokenBalance } from '@/types';
 
 // Moonwell contract addresses on Base
 const MOONWELL_COMPTROLLER = '0xfBb21d0380beE3312B33c4353c8936a0F13EF26C';
-const BASE_RPC = 'https://mainnet.base.org';
+
+// Base network RPC with Alchemy support
+const getBaseRpc = () => {
+  const alchemyKey = process.env.ALCHEMY_API_KEY;
+  return alchemyKey 
+    ? `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`
+    : 'https://mainnet.base.org';
+};
 
 // Moonwell mToken ABI (simplified)
 const MTOKEN_ABI = [
@@ -40,7 +47,7 @@ export class MoonwellIntegration implements MoonwellService {
   private comptroller: ethers.Contract;
 
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(BASE_RPC);
+    this.provider = new ethers.JsonRpcProvider(getBaseRpc());
     this.comptroller = new ethers.Contract(MOONWELL_COMPTROLLER, COMPTROLLER_ABI, this.provider);
   }
 

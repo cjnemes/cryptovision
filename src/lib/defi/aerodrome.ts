@@ -6,8 +6,13 @@ const AERODROME_ROUTER = '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43';
 const AERODROME_VOTER = '0x16613524e02ad97eDfeF371bC883F2F5d6C480A5';
 const AERODROME_FACTORY = '0x420DD381b31aEf6683db6B902084cB0FFECe40Da';
 
-// Base network RPC
-const BASE_RPC = 'https://mainnet.base.org';
+// Base network RPC with Alchemy support
+const getBaseRpc = () => {
+  const alchemyKey = process.env.ALCHEMY_API_KEY;
+  return alchemyKey 
+    ? `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`
+    : 'https://mainnet.base.org';
+};
 
 // Aerodrome Router ABI (simplified)
 const ROUTER_ABI = [
@@ -41,7 +46,7 @@ export class AerodromeIntegration implements AerodromeService {
   private router: ethers.Contract;
 
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(BASE_RPC);
+    this.provider = new ethers.JsonRpcProvider(getBaseRpc());
     this.router = new ethers.Contract(AERODROME_ROUTER, ROUTER_ABI, this.provider);
   }
 

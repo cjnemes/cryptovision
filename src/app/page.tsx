@@ -34,8 +34,8 @@ export default function Home() {
             <Link href="/portfolio">
               <Button size="lg">Get Started</Button>
             </Link>
-            <Link href="/portfolio">
-              <Button variant="outline" size="lg">View Portfolio</Button>
+            <Link href="/analytics">
+              <Button variant="outline" size="lg">View Analytics</Button>
             </Link>
           </div>
         </div>

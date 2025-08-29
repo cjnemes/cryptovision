@@ -17,7 +17,13 @@ export class DeFiPositionAggregator implements DeFiAggregator {
   private moonwellService: any;
 
   constructor(rpcUrl?: string) {
-    this.provider = new ethers.JsonRpcProvider(rpcUrl || process.env.ALCHEMY_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo');
+    // Use Alchemy RPC with API key if available
+    const alchemyKey = process.env.ALCHEMY_API_KEY;
+    const defaultRpc = alchemyKey 
+      ? `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`
+      : 'https://eth-mainnet.g.alchemy.com/v2/demo';
+    
+    this.provider = new ethers.JsonRpcProvider(rpcUrl || defaultRpc);
     this.uniswapV3Service = createUniswapV3Service(this.provider);
     this.aerodromeService = createAerodromeService();
     this.moonwellService = createMoonwellService();
