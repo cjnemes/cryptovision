@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3'
 
-// Token contract address to CoinGecko ID mapping for common tokens
+// Token symbol/address to CoinGecko ID mapping
 const TOKEN_ID_MAP: Record<string, string> = {
+  // Contract addresses
   '0x0000000000000000000000000000000000000000': 'ethereum', // ETH
   '0xa0b86a33e6441b57c8ae6d9c0d1b9f7d9d8c9b8e': 'ethereum', // ETH (placeholder)
   '0xA0b86a33E6441b57c8AE6d9c0d1b9f7d9D8c9b8e': 'ethereum', // ETH
@@ -14,22 +15,42 @@ const TOKEN_ID_MAP: Record<string, string> = {
   '0x6B175474E89094C44Da98b954EedeAC495271d0F': 'dai', // DAI
   '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 'wrapped-bitcoin', // WBTC
   '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': 'weth', // WETH
+  '0x940181a94A35A4569E4529A3CDfB74e38FD98631': 'aerodrome-finance', // AERO
+  
+  // Symbols  
+  'AERO': 'aerodrome-finance',
+  'ETH': 'ethereum',
+  'WETH': 'weth',
+  'USDC': 'usd-coin',
+  'USDbC': 'usd-base-coin',
+  'DAI': 'dai',
+  'USDT': 'tether',
+  'BTC': 'bitcoin',
+  'WBTC': 'wrapped-bitcoin',
+  'cbETH': 'coinbase-wrapped-staked-eth',
+  'stETH': 'staked-ether',
+  'rETH': 'rocket-pool-eth',
+  'WELL': 'moonwell',
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { tokenAddresses } = await request.json()
+    const body = await request.json()
+    const { tokenAddresses, symbols } = body
     
-    if (!Array.isArray(tokenAddresses)) {
+    // Support both legacy tokenAddresses and new symbols format
+    const tokens = tokenAddresses || symbols || []
+    
+    if (!Array.isArray(tokens)) {
       return NextResponse.json(
-        { error: 'tokenAddresses must be an array' },
+        { error: 'tokenAddresses or symbols must be an array' },
         { status: 400 }
       )
     }
 
-    // Map contract addresses to CoinGecko IDs
-    const coinGeckoIds = tokenAddresses
-      .map(address => TOKEN_ID_MAP[address.toLowerCase()] || null)
+    // Map contract addresses/symbols to CoinGecko IDs
+    const coinGeckoIds = tokens
+      .map(token => TOKEN_ID_MAP[token.toLowerCase()] || TOKEN_ID_MAP[token.toUpperCase()] || null)
       .filter(Boolean)
 
     if (coinGeckoIds.length === 0) {
@@ -44,28 +65,39 @@ export async function POST(request: NextRequest) {
     
     const headers: HeadersInit = {
       'Accept': 'application/json',
+      'User-Agent': 'CryptoVision/1.0'
     }
     
     // Add API key if available
-    if (process.env.COINGECKO_API_KEY) {
+    if (process.env.COINGECKO_API_KEY && process.env.COINGECKO_API_KEY !== '') {
       headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY
     }
 
-    const response = await fetch(url, { headers })
+    const response = await fetch(url, { 
+      headers,
+      // Add timeout and error handling
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    })
     
     if (!response.ok) {
-      throw new Error(`CoinGecko API error: ${response.status}`)
+      console.warn(`CoinGecko API error: ${response.status} ${response.statusText}`)
+      // Return empty prices on API error rather than throwing
+      return NextResponse.json({
+        prices: {},
+        timestamp: new Date().toISOString(),
+        warning: `Price API temporarily unavailable (${response.status})`
+      })
     }
 
     const priceData = await response.json()
 
-    // Map prices back to contract addresses
+    // Map prices back to tokens (addresses or symbols)
     const prices: Record<string, { price: number; change24h: number }> = {}
     
-    tokenAddresses.forEach(address => {
-      const coinGeckoId = TOKEN_ID_MAP[address.toLowerCase()]
+    tokens.forEach(token => {
+      const coinGeckoId = TOKEN_ID_MAP[token.toLowerCase()] || TOKEN_ID_MAP[token.toUpperCase()]
       if (coinGeckoId && priceData[coinGeckoId]) {
-        prices[address.toLowerCase()] = {
+        prices[token] = {
           price: priceData[coinGeckoId].usd || 0,
           change24h: priceData[coinGeckoId].usd_24h_change || 0
         }

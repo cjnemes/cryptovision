@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { defiAggregator } from '@/lib/defi/aggregator';
-import { isValidAddress } from '@/lib/utils';
+import { isValidAddress, serializeBigInt } from '@/lib/utils';
 
 export async function GET(
   request: NextRequest,
@@ -24,8 +24,8 @@ export async function GET(
       );
     }
 
-    // For development, return mock data. In production, use real API calls
-    const useMockData = process.env.NODE_ENV === 'development' || !process.env.ALCHEMY_API_KEY;
+    // Use real data if Alchemy API key is configured, otherwise use mock data
+    const useMockData = !process.env.ALCHEMY_API_KEY || process.env.ALCHEMY_API_KEY === 'demo' || process.env.ALCHEMY_API_KEY === 'your_alchemy_api_key_here';
 
     let positions;
     if (useMockData) {
@@ -56,7 +56,8 @@ export async function GET(
       return acc;
     }, {} as any);
 
-    return NextResponse.json({
+    // Serialize the response data to convert BigInt values to strings
+    const responseData = serializeBigInt({
       address,
       summary: {
         totalValue,
@@ -70,6 +71,8 @@ export async function GET(
       timestamp: new Date().toISOString(),
       ...(useMockData && { note: 'Using mock data for development' })
     });
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error fetching DeFi positions:', error);
@@ -99,7 +102,8 @@ export async function POST(request: NextRequest) {
       positions = await defiAggregator.getAllPositions(address);
     }
 
-    return NextResponse.json({
+    // Serialize the response data to convert BigInt values to strings
+    const responseData = serializeBigInt({
       address,
       protocol: protocol || 'all',
       positions,
@@ -107,6 +111,8 @@ export async function POST(request: NextRequest) {
       totalValue: positions.reduce((sum, pos) => sum + pos.value, 0),
       timestamp: new Date().toISOString()
     });
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error in DeFi positions POST:', error);

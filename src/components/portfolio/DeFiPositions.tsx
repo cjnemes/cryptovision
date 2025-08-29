@@ -3,6 +3,8 @@
 import { useDeFiPositions } from '@/hooks/useDeFiPositions';
 import { formatCurrency, formatPercent } from '@/lib/utils';
 import { DeFiPosition } from '@/types';
+import { useState } from 'react';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 
 export function DeFiPositions() {
   const {
@@ -11,9 +13,12 @@ export function DeFiPositions() {
     protocolBreakdown,
     isLoading,
     hasPositions,
-    hasMockData,
-    getTopPositionsByValue
+    hasMockData
   } = useDeFiPositions();
+
+  const [sortBy, setSortBy] = useState<'value' | 'apy' | 'protocol'>('value');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [filterProtocol, setFilterProtocol] = useState<string>('');
 
   if (isLoading) {
     return <DeFiPositionsLoader />;
@@ -23,7 +28,36 @@ export function DeFiPositions() {
     return <NoDeFiPositions />;
   }
 
-  const topPositions = getTopPositionsByValue(3);
+  // Filter and sort positions
+  const filteredPositions = positions.filter(position => {
+    if (!filterProtocol) return true;
+    return position.protocol === filterProtocol;
+  });
+
+  const sortedPositions = [...filteredPositions].sort((a, b) => {
+    let comparison = 0;
+    switch (sortBy) {
+      case 'value':
+        comparison = a.value - b.value;
+        break;
+      case 'apy':
+        comparison = a.apy - b.apy;
+        break;
+      case 'protocol':
+        comparison = a.protocol.localeCompare(b.protocol);
+        break;
+    }
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  const handleSort = (field: 'value' | 'apy' | 'protocol') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -69,33 +103,102 @@ export function DeFiPositions() {
         </div>
       )}
 
-      {/* Protocol Breakdown */}
+      {/* Protocol Summary Cards */}
       <div className="bg-white rounded-xl border shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4">Protocols</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <h3 className="text-lg font-semibold mb-6">Protocol Overview</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Object.entries(protocolBreakdown).map(([protocol, data]) => (
-            <ProtocolCard key={protocol} protocol={protocol} data={data} />
+            <ProtocolSummaryCard key={protocol} protocol={protocol} data={data} />
           ))}
         </div>
       </div>
 
-      {/* Top Positions */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4">Top Positions</h3>
-        <div className="space-y-4">
-          {topPositions.map((position) => (
-            <PositionCard key={position.id} position={position} />
-          ))}
+      {/* Detailed Positions Table */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="p-6 pb-4 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="text-lg font-semibold">All Positions</h3>
+            <div className="flex items-center gap-3">
+              {/* Protocol Filter */}
+              <select
+                value={filterProtocol}
+                onChange={(e) => setFilterProtocol(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Protocols</option>
+                {Object.keys(protocolBreakdown).map(protocol => (
+                  <option key={protocol} value={protocol}>
+                    {getProtocolName(protocol)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        {/* Positions Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Position
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('protocol')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Protocol</span>
+                    {sortBy === 'protocol' && (
+                      sortOrder === 'desc' ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronUpIcon className="h-3 w-3" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('value')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Value</span>
+                    {sortBy === 'value' && (
+                      sortOrder === 'desc' ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronUpIcon className="h-3 w-3" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('apy')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>APY</span>
+                    {sortBy === 'apy' && (
+                      sortOrder === 'desc' ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronUpIcon className="h-3 w-3" />
+                    )}
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Rewards
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedPositions.map((position) => (
+                <PositionTableRow key={position.id} position={position} />
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-function ProtocolCard({ protocol, data }: { 
-  protocol: string; 
-  data: { count: number; totalValue: number; positions: DeFiPosition[] } 
-}) {
+// Helper functions
+function getProtocolName(protocol: string): string {
   const protocolNames: Record<string, string> = {
     'uniswap-v3': 'Uniswap V3',
     'aave': 'Aave',
@@ -105,46 +208,80 @@ function ProtocolCard({ protocol, data }: {
     'aerodrome': 'Aerodrome',
     'moonwell': 'Moonwell'
   };
+  return protocolNames[protocol] || protocol;
+}
 
-  const getProtocolIcon = (protocol: string) => {
-    switch (protocol) {
-      case 'uniswap-v3':
-        return '🦄';
-      case 'aave':
-        return '👻';
-      case 'lido':
-        return '🏛️';
-      case 'compound':
-        return '🏦';
-      case 'curve':
-        return '🌊';
-      case 'aerodrome':
-        return '🛩️';
-      case 'moonwell':
-        return '🌙';
-      default:
-        return '💎';
-    }
-  };
+function getProtocolIcon(protocol: string): string {
+  switch (protocol) {
+    case 'uniswap-v3':
+      return '🦄';
+    case 'aave':
+      return '👻';
+    case 'lido':
+      return '🏛️';
+    case 'compound':
+      return '🏦';
+    case 'curve':
+      return '🌊';
+    case 'aerodrome':
+      return '🛩️';
+    case 'moonwell':
+      return '🌙';
+    default:
+      return '💎';
+  }
+}
+
+function ProtocolSummaryCard({ protocol, data }: { 
+  protocol: string; 
+  data: { count: number; totalValue: number; positions: DeFiPosition[] } 
+}) {
+  // Calculate average APY for this protocol
+  const totalAPY = data.positions.reduce((sum, pos) => sum + (pos.apy * pos.value), 0);
+  const avgAPY = data.totalValue > 0 ? totalAPY / data.totalValue : 0;
+  const totalRewards = data.positions.reduce((sum, pos) => sum + (pos.claimable || 0), 0);
 
   return (
-    <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
+    <div className="border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-3">
           <span className="text-2xl">{getProtocolIcon(protocol)}</span>
-          <h4 className="font-medium">{protocolNames[protocol] || protocol}</h4>
+          <h4 className="font-semibold text-gray-900">{getProtocolName(protocol)}</h4>
         </div>
-        <span className="text-sm text-gray-500">{data.count} positions</span>
       </div>
-      <p className="text-lg font-semibold text-gray-900">
-        {formatCurrency(data.totalValue)}
-      </p>
+      
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Total Value</span>
+          <span className="font-semibold text-gray-900">{formatCurrency(data.totalValue)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Positions</span>
+          <span className="font-medium text-gray-700">{data.count}</span>
+        </div>
+        
+        {avgAPY > 0 && (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Avg APY</span>
+            <span className="font-medium text-blue-600">{formatPercent(avgAPY)}</span>
+          </div>
+        )}
+        
+        {totalRewards > 0 && (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Rewards</span>
+            <span className="font-medium text-green-600">{formatCurrency(totalRewards)}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function PositionCard({ position }: { position: DeFiPosition }) {
-  const getTypeIcon = (type: string) => {
+function PositionTableRow({ position }: { position: DeFiPosition }) {
+  const getTypeIcon = (type: string, protocol?: string) => {
+    if (protocol === 'aerodrome' && type === 'staking') return '🏆'; // Special icon for veAERO
     switch (type) {
       case 'liquidity': return '💧';
       case 'lending': return '🏦';
@@ -158,6 +295,9 @@ function PositionCard({ position }: { position: DeFiPosition }) {
     if (protocol === 'uniswap-v3' && metadata?.inRange === false) {
       return 'text-orange-600 bg-orange-50 border-orange-200';
     }
+    if (protocol === 'aerodrome' && metadata?.nftId) {
+      return 'text-purple-600 bg-purple-50 border-purple-200';
+    }
     return 'text-green-600 bg-green-50 border-green-200';
   };
 
@@ -165,43 +305,71 @@ function PositionCard({ position }: { position: DeFiPosition }) {
     if (protocol === 'uniswap-v3') {
       return metadata?.inRange ? 'In Range' : 'Out of Range';
     }
+    if (protocol === 'aerodrome' && metadata?.nftId) {
+      return `NFT #${metadata.nftId}`;
+    }
     return 'Active';
   };
 
+  // Special handling for veAERO positions
+  const isVeAero = position.protocol === 'aerodrome' && position.type === 'staking' && position.metadata?.nftId;
+  const displayName = isVeAero ? position.metadata?.displayName : `${getProtocolName(position.protocol)} ${position.type}`;
+  const displayTokens = isVeAero ? position.metadata?.displayDescription : position.tokens.map(t => t.symbol).join(' / ');
+
   return (
-    <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-      <div className="flex items-start justify-between mb-3">
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center space-x-3">
-          <span className="text-2xl">{getTypeIcon(position.type)}</span>
-          <div>
-            <h4 className="font-medium capitalize">
-              {position.protocol.replace('-', ' ')} {position.type}
-            </h4>
-            <p className="text-sm text-gray-500">
-              {position.tokens.map(t => t.symbol).join(' / ')}
-            </p>
+          <span className="text-xl">{getTypeIcon(position.type, position.protocol)}</span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-900 truncate">
+              {displayName}
+            </div>
+            <div className="text-sm text-gray-500 truncate">
+              {displayTokens}
+            </div>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-lg font-semibold">{formatCurrency(position.value)}</p>
-          <p className="text-sm text-blue-600">{formatPercent(position.apy)} APY</p>
+      </td>
+      
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">{getProtocolIcon(position.protocol)}</span>
+          <span className="text-sm font-medium text-gray-900">
+            {getProtocolName(position.protocol)}
+          </span>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${
+      </td>
+      
+      <td className="px-6 py-4 whitespace-nowrap text-right">
+        <div className="text-sm font-semibold text-gray-900">
+          {formatCurrency(position.value)}
+        </div>
+      </td>
+      
+      <td className="px-6 py-4 whitespace-nowrap text-right">
+        <div className="text-sm font-medium text-blue-600">
+          {position.apy > 0 ? formatPercent(position.apy) : '—'}
+        </div>
+      </td>
+      
+      <td className="px-6 py-4 whitespace-nowrap text-right">
+        <div className="text-sm font-medium text-green-600">
+          {(position.claimable && position.claimable > 0) 
+            ? formatCurrency(position.claimable) 
+            : '—'
+          }
+        </div>
+      </td>
+      
+      <td className="px-6 py-4 whitespace-nowrap text-center">
+        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${
           getStatusColor(position.protocol, position.metadata)
         }`}>
           {getStatusText(position.protocol, position.metadata)}
         </span>
-        
-        {position.claimable && position.claimable > 0 && (
-          <span className="text-sm text-green-600">
-            {formatCurrency(position.claimable)} claimable
-          </span>
-        )}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 

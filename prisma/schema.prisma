@@ -1,0 +1,152 @@
+// Prisma schema for CryptoVision
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User wallets being tracked
+model Wallet {
+  id          String   @id @default(cuid())
+  address     String   @unique
+  name        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions Transaction[]
+  snapshots    PortfolioSnapshot[]
+
+  @@map("wallets")
+}
+
+// Transaction history for calculating P&L
+model Transaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  wallet      Wallet          @relation(fields: [walletId], references: [id])
+  
+  hash        String          @unique
+  blockNumber Int
+  timestamp   DateTime
+  
+  type        TransactionType
+  protocol    String?         // e.g., "uniswap-v3", "aerodrome"
+  
+  // Token movements
+  tokenIn     String?         // Token contract address
+  tokenOut    String?         // Token contract address
+  amountIn    String?         // Raw amount (as string to handle BigInt)
+  amountOut   String?         // Raw amount (as string to handle BigInt)
+  
+  // Transaction costs
+  gasUsed     String
+  gasPrice    String
+  gasCost     String          // Total gas cost in ETH/native token
+  
+  // USD values at time of transaction
+  valueUsd    Float?
+  gasCostUsd  Float?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([walletId])
+  @@index([timestamp])
+  @@map("transactions")
+}
+
+// Historical token prices
+model TokenPrice {
+  id          String   @id @default(cuid())
+  address     String   // Token contract address
+  symbol      String
+  priceUsd    Float
+  timestamp   DateTime
+  source      String   // "coingecko", "coinmarketcap", etc.
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([address, timestamp, source])
+  @@index([address])
+  @@index([timestamp])
+  @@map("token_prices")
+}
+
+// Portfolio snapshots for performance tracking
+model PortfolioSnapshot {
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id])
+  
+  timestamp   DateTime
+  totalValue  Float    // Total portfolio value in USD
+  
+  // Breakdown by category
+  tokenValue  Float    // Value of token holdings
+  defiValue   Float    // Value of DeFi positions
+  nftValue    Float    // Value of NFT holdings
+  
+  // Performance metrics
+  dayChange   Float?   // 24h change in USD
+  dayChangePct Float?  // 24h change percentage
+  
+  createdAt   DateTime @default(now())
+
+  positions   SnapshotPosition[]
+
+  @@unique([walletId, timestamp])
+  @@index([walletId])
+  @@index([timestamp])
+  @@map("portfolio_snapshots")
+}
+
+// Individual position data within a snapshot
+model SnapshotPosition {
+  id         String            @id @default(cuid())
+  snapshotId String
+  snapshot   PortfolioSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  
+  type       PositionType
+  protocol   String?
+  
+  // Token information
+  tokenAddress String
+  symbol       String
+  balance      String         // Raw balance as string
+  valueUsd     Float
+  
+  // DeFi specific data
+  apy          Float?
+  claimable    Float?
+  metadata     Json?          // Protocol-specific data
+  
+  @@index([snapshotId])
+  @@map("snapshot_positions")
+}
+
+// Enums
+enum TransactionType {
+  TRANSFER
+  SWAP
+  ADD_LIQUIDITY
+  REMOVE_LIQUIDITY
+  STAKE
+  UNSTAKE
+  CLAIM_REWARDS
+  BORROW
+  REPAY
+  SUPPLY
+  WITHDRAW
+}
+
+enum PositionType {
+  TOKEN
+  LIQUIDITY_POOL
+  LENDING
+  BORROWING
+  STAKING
+  FARMING
+}

@@ -45,11 +45,126 @@ export function useTokenBalances() {
       setError(null)
 
       try {
-        // Check if we have a valid Alchemy API key
-        if (!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY && process.env.ALCHEMY_API_KEY !== 'demo-key') {
-          console.log('Using mock data - set ALCHEMY_API_KEY for real data')
+        // Try to fetch real data from multiple chains
+        try {
           
-          // Use mock data if no API key is configured
+          // Fetch balances from multiple chains
+          const chains = [1, 8453]; // Ethereum and Base
+          const balancePromises = chains.map(async (chainId) => {
+            try {
+              const response = await fetch(`/api/balances/${address}?chainId=${chainId}`);
+              if (response.ok) {
+                const data = await response.json();
+                return { chainId, data };
+              }
+              return null;
+            } catch (error) {
+              console.warn(`Failed to fetch from chain ${chainId}:`, error);
+              return null;
+            }
+          });
+          
+          const chainResults = await Promise.all(balancePromises);
+          const validResults = chainResults.filter(result => result !== null);
+          
+          
+          if (validResults.length > 0) {
+            // Combine all balances from all chains
+            const allBalances = validResults.flatMap(result => result!.data.balances);
+            
+            // Get token addresses for price fetching
+            const tokenAddresses = allBalances.map(token => token.address)
+            
+            // Fetch prices for all tokens
+            const pricesResponse = await fetch('/api/prices', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ tokenAddresses })
+            })
+            
+            const pricesData: PriceResponse = pricesResponse.ok 
+              ? await pricesResponse.json() 
+              : { prices: {}, timestamp: new Date().toISOString() }
+            
+            // Filter out spam tokens before processing
+            const filteredBalances = allBalances.filter(token => {
+              // Skip tokens with balance of exactly 1 wei (common spam pattern)
+              const balanceInTokens = parseFloat(formatUnits(token.balance, token.decimals))
+              if (token.balance === '0x0000000000000000000000000000000000000000000000000000000000000001') {
+                return false
+              }
+              
+              // Filter out obvious spam patterns in name/symbol
+              const spamPatterns = [
+                /claim/i,
+                /airdrop/i,
+                /distribution/i,
+                /t\.me/i,
+                /telegram/i,
+                /visit/i,
+                /\.com/i,
+                /reward/i,
+                /bonus/i,
+                /uѕdс/i, // Fake USDC with different unicode
+                /trump/i,
+                /✅/,
+                /\$.*claim/i
+              ]
+              
+              const nameAndSymbol = `${token.name} ${token.symbol}`.toLowerCase()
+              if (spamPatterns.some(pattern => pattern.test(nameAndSymbol))) {
+                return false
+              }
+              
+              // Skip tokens with very small balances (dust)
+              if (balanceInTokens < 0.00001 && token.symbol !== 'ETH') {
+                return false
+              }
+              
+              return true
+            })
+
+            // Combine balance and price data from all chains
+            const tokenBalances: TokenBalance[] = filteredBalances
+              .map(token => {
+                try {
+                  // Convert balance from hex/wei to decimal
+                  const balanceInTokens = parseFloat(formatUnits(token.balance, token.decimals))
+                  
+                  // Get price data
+                  const priceInfo = pricesData.prices[token.address.toLowerCase()] || { price: 0, change24h: 0 }
+                  const value = balanceInTokens * priceInfo.price
+                  
+                  return {
+                    address: token.address,
+                    symbol: token.symbol,
+                    name: token.name,
+                    balance: balanceInTokens.toString(),
+                    decimals: token.decimals,
+                    price: priceInfo.price,
+                    value: value,
+                    logo: token.logo || null
+                  }
+                } catch (error) {
+                  console.error(`Error processing token ${token.symbol}:`, error)
+                  return null
+                }
+              })
+              .filter((token): token is TokenBalance => token !== null)
+              .sort((a, b) => b.value - a.value) // Sort by value descending
+              .slice(0, 20) // Limit to top 20 tokens
+            
+            setBalances(tokenBalances)
+            return
+          }
+        } catch (apiError) {
+          console.warn('API call failed, falling back to mock data:', apiError)
+        }
+        
+        // Fallback to mock data if API is not working
+        console.log('Using mock data - configure API keys for real blockchain data')
           const mockTokenBalances: TokenBalance[] = [
             {
               address: '0x0000000000000000000000000000000000000000',
@@ -83,71 +198,8 @@ export function useTokenBalances() {
             }
           ]
           
-          await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate loading
-          setBalances(mockTokenBalances)
-          return
-        }
-
-        // Fetch token balances from our API
-        const balancesResponse = await fetch(`/api/balances/${address}?chainId=${chainId}`)
-        if (!balancesResponse.ok) {
-          throw new Error('Failed to fetch balances')
-        }
-        
-        const balancesData: BalanceResponse = await balancesResponse.json()
-        
-        // Get token addresses for price fetching
-        const tokenAddresses = balancesData.balances.map(token => token.address)
-        
-        // Fetch prices for all tokens
-        const pricesResponse = await fetch('/api/prices', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ tokenAddresses })
-        })
-        
-        const pricesData: PriceResponse = pricesResponse.ok 
-          ? await pricesResponse.json() 
-          : { prices: {}, timestamp: new Date().toISOString() }
-        
-        // Combine balance and price data
-        const tokenBalances: TokenBalance[] = balancesData.balances
-          .map(token => {
-            try {
-              // Convert balance from hex/wei to decimal
-              const balanceInTokens = parseFloat(formatUnits(token.balance, token.decimals))
-              
-              // Skip tokens with very small balances (dust)
-              if (balanceInTokens < 0.00001 && token.symbol !== 'ETH') {
-                return null
-              }
-              
-              // Get price data
-              const priceInfo = pricesData.prices[token.address.toLowerCase()] || { price: 0, change24h: 0 }
-              const value = balanceInTokens * priceInfo.price
-              
-              return {
-                address: token.address,
-                symbol: token.symbol,
-                name: token.name,
-                balance: balanceInTokens.toString(),
-                decimals: token.decimals,
-                price: priceInfo.price,
-                value: value,
-                logo: token.logo || null
-              }
-            } catch (error) {
-              console.error(`Error processing token ${token.symbol}:`, error)
-              return null
-            }
-          })
-          .filter((token): token is TokenBalance => token !== null)
-          .sort((a, b) => b.value - a.value) // Sort by value descending
-          .slice(0, 20) // Limit to top 20 tokens
-        
-        setBalances(tokenBalances)
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate loading
+        setBalances(mockTokenBalances)
         
       } catch (err) {
         console.error('Error fetching balances:', err)

@@ -51,7 +51,7 @@ async function main() {
     {
       key: 'COINMARKETCAP_API_KEY',
       name: 'CoinMarketCap API Key', 
-      description: 'Get from https://coinmarketcap.com/ - Alternative price data (optional)',
+      description: 'Get from https://coinmarketcap.com/api/ - Price data API (optional)',
       required: false
     },
     {

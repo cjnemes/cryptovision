@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { DeFiPosition, AerodromePosition, TokenBalance } from '@/types';
+import { getTokenPrice } from '@/lib/prices';
 
 // Aerodrome contract addresses on Base
 const AERODROME_ROUTER = '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43';
@@ -69,6 +70,14 @@ export class AerodromeIntegration implements AerodromeService {
         }
       }
 
+      // Get veAERO locked positions
+      try {
+        const veAeroPositions = await this.getVeAeroPositions(walletAddress);
+        positions.push(...veAeroPositions);
+      } catch (error) {
+        console.warn('Failed to fetch veAERO positions:', error);
+      }
+
       return positions;
     } catch (error) {
       console.error('Error fetching Aerodrome positions:', error);
@@ -96,30 +105,31 @@ export class AerodromeIntegration implements AerodromeService {
         pair.getReserves(),
       ]);
 
-      // Calculate user's share of the pool
-      const userShare = Number(lpBalance) / Number(totalSupply);
-      const token0Amount = (Number(reserves.reserve0) * userShare).toString();
-      const token1Amount = (Number(reserves.reserve1) * userShare).toString();
+      // Calculate user's share using proper BigInt precision
+      const token0AmountWei = (lpBalance * BigInt(reserves.reserve0)) / totalSupply;
+      const token1AmountWei = (lpBalance * BigInt(reserves.reserve1)) / totalSupply;
+      const token0Amount = parseFloat(ethers.formatEther(token0AmountWei));
+      const token1Amount = parseFloat(ethers.formatEther(token1AmountWei));
 
       // Create token balances (mock token data for development)
       const token0: TokenBalance = {
         address: token0Address,
         symbol: pairInfo.token0Symbol || 'TOKEN0',
         name: `Token 0 (${pairInfo.token0Symbol})`,
-        balance: token0Amount,
+        balance: token0Amount.toString(),
         decimals: 18,
         price: pairInfo.token0Price || 1,
-        value: (Number(token0Amount) / 1e18) * (pairInfo.token0Price || 1),
+        value: token0Amount * (pairInfo.token0Price || 1),
       };
 
       const token1: TokenBalance = {
         address: token1Address,
         symbol: pairInfo.token1Symbol || 'TOKEN1',
         name: `Token 1 (${pairInfo.token1Symbol})`,
-        balance: token1Amount,
+        balance: token1Amount.toString(),
         decimals: 18,
         price: pairInfo.token1Price || 1,
-        value: (Number(token1Amount) / 1e18) * (pairInfo.token1Price || 1),
+        value: token1Amount * (pairInfo.token1Price || 1),
       };
 
       // Check for gauge staking
@@ -176,28 +186,109 @@ export class AerodromeIntegration implements AerodromeService {
   }
 
   private async getCommonPairs() {
-    // Mock common Aerodrome pairs on Base
-    return [
-      {
-        address: '0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d', // Mock ETH/USDC
-        symbol: 'ETH/USDC',
-        token0Symbol: 'WETH',
-        token1Symbol: 'USDC',
-        token0Price: 4500,
-        token1Price: 1,
-        gauge: '0x7d7F1765aCbaF847b9A1f7137FE8Ed4931FbfEbA', // Mock gauge
-      },
-      {
-        address: '0x9BA7d5C0F8B09E2f59b5ca3d5C8e5B4B3E5A5c5c', // Mock USDC/USDbC stable pair
-        symbol: 'USDC/USDbC',
-        token0Symbol: 'USDC',
-        token1Symbol: 'USDbC',
-        token0Price: 1,
-        token1Price: 1,
-        isStable: true,
-        gauge: '0x8BA7d5C0F8B09E2f59b5ca3d5C8e5B4B3E5A5c5c',
-      },
-    ];
+    // Skip common pairs for now since we don't have user positions
+    // In a real implementation, we'd query the user's LP token balances
+    // or use Aerodrome's subgraph to find user positions
+    return [];
+  }
+  
+  async getVeAeroPositions(walletAddress: string): Promise<DeFiPosition[]> {
+    try {
+      const positions: DeFiPosition[] = [];
+      
+      // VotingEscrow (veAERO) contract with correct interface
+      const veAeroContract = new ethers.Contract(
+        '0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4',
+        [
+          'function balanceOf(address owner) external view returns (uint256)',
+          'function ownerToNFTokenIdList(address _owner, uint256 _index) external view returns (uint256)',
+          'function balanceOfNFT(uint256 _tokenId) external view returns (uint256)',
+          'function locked(uint256 _tokenId) external view returns (tuple(int128 amount, uint256 end))',
+          'function ownerOf(uint256 tokenId) external view returns (address)',
+        ],
+        this.provider
+      );
+
+      // Get the number of tokens owned by the user
+      const userBalance = await veAeroContract.balanceOf(walletAddress);
+      console.log(`User owns ${userBalance.toString()} veAERO NFTs`);
+      
+      if (userBalance > 0n) {
+        for (let i = 0; i < Number(userBalance); i++) {
+          try {
+            // Get the token ID at this index using the correct enumeration function
+            const tokenId = await veAeroContract.ownerToNFTokenIdList(walletAddress, i);
+            console.log(`Processing veAERO token ID: ${tokenId.toString()}`);
+            
+            // Get lock information
+            const lockInfo = await veAeroContract.locked(tokenId);
+            const lockedAmount = lockInfo.amount;
+            const unlockTime = lockInfo.end;
+            
+            // Get voting power (balanceOfNFT)
+            const votingPower = await veAeroContract.balanceOfNFT(tokenId);
+            
+            console.log(`Token ${tokenId}: locked=${lockedAmount.toString()}, unlockTime=${unlockTime.toString()}, votingPower=${votingPower.toString()}`);
+            
+            if (lockedAmount > 0n) {
+              // Convert locked amount to readable format (AERO has 18 decimals)
+              const lockedAero = parseFloat(ethers.formatEther(lockedAmount.toString()));
+              const aeroPrice = await getTokenPrice('AERO'); // Get real-time AERO price
+              
+              // Calculate time until unlock
+              const now = Math.floor(Date.now() / 1000);
+              const timeUntilUnlock = Number(unlockTime) - now;
+              const daysUntilUnlock = Math.max(0, Math.ceil(timeUntilUnlock / 86400));
+              
+              const aeroToken: TokenBalance = {
+                address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631',
+                symbol: `veAERO #${tokenId}`,
+                name: `Vote-Escrowed AERO NFT #${tokenId}`,
+                balance: lockedAero.toString(),
+                decimals: 18,
+                price: aeroPrice,
+                value: lockedAero * aeroPrice,
+              };
+
+              // Determine lock status
+              const lockStatus = unlockTime === 0n ? 'Permanent' : (timeUntilUnlock > 0 ? 'Locked' : 'Unlocked');
+              const votingPowerFormatted = parseFloat(ethers.formatEther(votingPower)).toFixed(0);
+
+              positions.push({
+                id: `aerodrome-veaero-${tokenId}`,
+                protocol: 'aerodrome',
+                type: 'staking',
+                tokens: [aeroToken],
+                apy: 0, // veAERO doesn't earn APY directly, earns voting rewards
+                value: lockedAero * aeroPrice,
+                claimable: 0,
+                metadata: {
+                  tokenId: tokenId.toString(),
+                  lockedAmount: lockedAmount.toString(),
+                  unlockTime: Number(unlockTime),
+                  daysUntilUnlock,
+                  isLocked: timeUntilUnlock > 0,
+                  votingPower: votingPower.toString(),
+                  displayName: `veAERO NFT #${tokenId}`,
+                  displayDescription: `${lockedAero.toLocaleString('en-US', { maximumFractionDigits: 0 })} AERO • ${votingPowerFormatted} Voting Power • ${lockStatus}`,
+                  nftId: tokenId.toString(),
+                }
+              });
+
+              const unlockDate = new Date(Number(unlockTime) * 1000).toDateString();
+              console.log(`Added veAERO position: ${lockedAero} AERO locked until ${unlockDate}, voting power: ${ethers.formatEther(votingPower)}, value: $${(lockedAero * aeroPrice).toFixed(2)}`);
+            }
+          } catch (error) {
+            console.warn(`Failed to get veAERO position for index ${i}:`, error.message);
+          }
+        }
+      }
+
+      return positions;
+    } catch (error) {
+      console.error('Error fetching veAERO positions:', error);
+      return [];
+    }
   }
 }
 
