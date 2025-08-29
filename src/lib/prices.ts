@@ -17,7 +17,14 @@ class PriceService {
   // Use our internal price API
   private async fetchFromAPI(symbols: string[]): Promise<PriceCache> {
     try {
-      const response = await fetch('/api/prices', {
+      // Use absolute URL for server-side requests
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NODE_ENV === 'development' 
+          ? 'http://localhost:3001'
+          : 'http://localhost:3000';
+      
+      const response = await fetch(`${baseUrl}/api/prices`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

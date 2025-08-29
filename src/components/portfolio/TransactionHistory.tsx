@@ -35,9 +35,10 @@ interface Transaction {
 interface TransactionHistoryProps {
   transactions: Transaction[];
   isLoading: boolean;
+  compact?: boolean;
 }
 
-export function TransactionHistory({ transactions = [], isLoading }: TransactionHistoryProps) {
+export function TransactionHistory({ transactions = [], isLoading, compact = false }: TransactionHistoryProps) {
   const [sortBy, setSortBy] = useState<'timestamp' | 'value' | 'type'>('timestamp');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterType, setFilterType] = useState<string>('all');
@@ -175,6 +176,62 @@ export function TransactionHistory({ transactions = [], isLoading }: Transaction
       setSortOrder('desc');
     }
   };
+
+  // Show compact version for sidebar
+  if (compact) {
+    const recentTransactions = displayTransactions.slice(0, 5);
+    
+    if (recentTransactions.length === 0) {
+      return (
+        <div className="text-center py-6">
+          <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span className="text-lg">📈</span>
+          </div>
+          <p className="text-sm text-gray-500">No recent activity</p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-3">
+        {recentTransactions.map((tx) => (
+          <div key={tx.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <div className={`p-1.5 rounded-full ${getTypeColor(tx.type)}`}>
+              {getTransactionIcon(tx.type)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {tx.type.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                </p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {formatCurrency((tx.tokenIn?.value || 0) + (tx.tokenOut?.value || 0))}
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500 truncate">
+                  {tx.protocol && `${tx.protocol.replace('-', ' ')} • `}
+                  {tx.timestamp.toLocaleDateString()}
+                </p>
+                <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${
+                  tx.status === 'success' ? 'bg-green-100 text-green-800' :
+                  tx.status === 'failed' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {tx.status === 'success' ? '✓' : tx.status === 'failed' ? '×' : '•'}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+        <div className="pt-2 border-t border-gray-100">
+          <p className="text-xs text-gray-500 text-center">
+            Showing {recentTransactions.length} of {displayTransactions.length} transactions
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border shadow-sm p-6">

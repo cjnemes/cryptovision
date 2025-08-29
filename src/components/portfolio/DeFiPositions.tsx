@@ -62,68 +62,111 @@ export function DeFiPositions() {
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Total DeFi Value</h3>
-          <p className="text-2xl font-bold text-gray-900">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200/50 dark:border-blue-700/50 shadow-lg">
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">Total DeFi Value</h3>
+          <p className="text-2xl font-black text-slate-900 dark:text-white mb-1">
             {formatCurrency(summary.totalValue)}
           </p>
+          <div className="w-full bg-blue-200/30 dark:bg-blue-700/20 rounded-full h-2">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full" style={{ width: '100%' }}></div>
+          </div>
         </div>
         
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Claimable Rewards</h3>
-          <p className="text-2xl font-bold text-green-600">
+        <div className="p-6 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-xl border border-emerald-200/50 dark:border-emerald-700/50 shadow-lg">
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">Claimable Rewards</h3>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mb-1">
             {formatCurrency(summary.totalClaimable)}
           </p>
+          <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            🎯 Ready to claim
+          </div>
         </div>
         
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Average APY</h3>
-          <p className="text-2xl font-bold text-blue-600">
+        <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl border border-amber-200/50 dark:border-amber-700/50 shadow-lg">
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">Average APY</h3>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mb-1">
             {formatPercent(summary.averageAPY)}
           </p>
+          <div className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            📈 Weighted average
+          </div>
         </div>
         
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Active Positions</h3>
-          <p className="text-2xl font-bold text-gray-900">
+        <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg">
+          <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">Active Positions</h3>
+          <p className="text-2xl font-black text-slate-900 dark:text-white mb-1">
             {summary.positionCount}
           </p>
-          <p className="text-sm text-gray-500">
-            {summary.protocolCount} protocols
+          <p className="text-xs font-medium text-purple-600 dark:text-purple-400">
+            🏛️ {summary.protocolCount} protocols
           </p>
         </div>
       </div>
 
       {hasMockData && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            📊 Showing demo DeFi positions. Connect with API keys to see real data.
-          </p>
+        <div className="relative">
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-xl blur"></div>
+          <div className="relative bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/30 dark:to-indigo-900/30 backdrop-blur-xl border border-blue-200/50 dark:border-blue-700/50 rounded-xl p-5">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold">📊</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Demo DeFi Portfolio
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Connect with API keys to see real data
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Protocol Summary Cards */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-6">Protocol Overview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(protocolBreakdown).map(([protocol, data]) => (
-            <ProtocolSummaryCard key={protocol} protocol={protocol} data={data} />
-          ))}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/30 to-slate-100/30 dark:from-slate-800/30 dark:to-slate-700/30 rounded-2xl"></div>
+        <div className="relative p-8 bg-gradient-to-br from-slate-50/80 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-600/50 shadow-lg">
+          <div className="flex items-center space-x-4 mb-8">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-slate-500 to-slate-700 rounded-xl blur opacity-30"></div>
+              <div className="relative w-12 h-12 bg-gradient-to-br from-slate-500 to-slate-700 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">🏛️</span>
+              </div>
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">Protocol Overview</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(protocolBreakdown).map(([protocol, data]) => (
+              <ProtocolSummaryCard key={protocol} protocol={protocol} data={data} />
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Detailed Positions Table */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="p-6 pb-4 border-b">
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/30 to-slate-100/30 dark:from-slate-800/30 dark:to-slate-700/30 rounded-2xl"></div>
+        <div className="relative bg-gradient-to-br from-slate-50/80 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-600/50 shadow-lg overflow-hidden">
+        <div className="p-8 pb-6 border-b border-slate-200/50 dark:border-slate-600/50">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h3 className="text-lg font-semibold">All Positions</h3>
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-30"></div>
+                <div className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-lg">📋</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">All Positions</h3>
+            </div>
             <div className="flex items-center gap-3">
               {/* Protocol Filter */}
               <select
                 value={filterProtocol}
                 onChange={(e) => setFilterProtocol(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-600/50 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 shadow-sm transition-all"
               >
                 <option value="">All Protocols</option>
                 {Object.keys(protocolBreakdown).map(protocol => (
@@ -139,13 +182,13 @@ export function DeFiPositions() {
         {/* Positions Table */}
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gradient-to-r from-slate-100/80 to-slate-200/80 dark:from-slate-700/50 dark:to-slate-600/50 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-600/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Position
                 </th>
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-600/30 transition-colors rounded-lg"
                   onClick={() => handleSort('protocol')}
                 >
                   <div className="flex items-center space-x-1">
@@ -156,7 +199,7 @@ export function DeFiPositions() {
                   </div>
                 </th>
                 <th 
-                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-right text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-600/30 transition-colors rounded-lg"
                   onClick={() => handleSort('value')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -167,7 +210,7 @@ export function DeFiPositions() {
                   </div>
                 </th>
                 <th 
-                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-right text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-600/30 transition-colors rounded-lg"
                   onClick={() => handleSort('apy')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -177,23 +220,24 @@ export function DeFiPositions() {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Rewards
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white/50 dark:bg-slate-800/30 divide-y divide-slate-200/50 dark:divide-slate-600/30 backdrop-blur-xl">
               {sortedPositions.map((position) => (
                 <PositionTableRow key={position.id} position={position} />
               ))}
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
       </div>
-    </div>
   );
 }
 
@@ -242,38 +286,52 @@ function ProtocolSummaryCard({ protocol, data }: {
   const totalRewards = data.positions.reduce((sum, pos) => sum + (pos.claimable || 0), 0);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <span className="text-2xl">{getProtocolIcon(protocol)}</span>
-          <h4 className="font-semibold text-gray-900">{getProtocolName(protocol)}</h4>
-        </div>
-      </div>
-      
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Total Value</span>
-          <span className="font-semibold text-gray-900">{formatCurrency(data.totalValue)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Positions</span>
-          <span className="font-medium text-gray-700">{data.count}</span>
-        </div>
-        
-        {avgAPY > 0 && (
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Avg APY</span>
-            <span className="font-medium text-blue-600">{formatPercent(avgAPY)}</span>
+    <div className="relative group">
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-300"></div>
+      <div className="relative p-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-slate-200/50 dark:border-slate-600/50 rounded-xl hover:border-slate-300/50 dark:hover:border-slate-500/50 transition-all shadow-sm hover:shadow-md">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center shadow-sm">
+              <span className="text-xl">{getProtocolIcon(protocol)}</span>
+            </div>
+            <h4 className="font-bold text-slate-900 dark:text-white">{getProtocolName(protocol)}</h4>
           </div>
-        )}
+        </div>
         
-        {totalRewards > 0 && (
+        <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Rewards</span>
-            <span className="font-medium text-green-600">{formatCurrency(totalRewards)}</span>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Total Value</span>
+            <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(data.totalValue)}</span>
           </div>
-        )}
+          
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Positions</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">{data.count}</span>
+          </div>
+          
+          {avgAPY > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Avg APY</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">{formatPercent(avgAPY)}</span>
+            </div>
+          )}
+          
+          {totalRewards > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Rewards</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalRewards)}</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-600/50">
+          <div className="w-full bg-slate-200/50 dark:bg-slate-600/30 rounded-full h-1.5">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full transition-all duration-500" 
+              style={{ width: `${Math.min((data.totalValue / 50000) * 100, 100)}%` }}
+            ></div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -293,12 +351,12 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
 
   const getStatusColor = (protocol: string, metadata?: any) => {
     if (protocol === 'uniswap-v3' && metadata?.inRange === false) {
-      return 'text-orange-600 bg-orange-50 border-orange-200';
+      return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700/50';
     }
     if (protocol === 'aerodrome' && metadata?.nftId) {
-      return 'text-purple-600 bg-purple-50 border-purple-200';
+      return 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700/50';
     }
-    return 'text-green-600 bg-green-50 border-green-200';
+    return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/50';
   };
 
   const getStatusText = (protocol: string, metadata?: any) => {
@@ -317,44 +375,48 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
   const displayTokens = isVeAero ? position.metadata?.displayDescription : position.tokens.map(t => t.symbol).join(' / ');
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="flex items-center space-x-3">
-          <span className="text-xl">{getTypeIcon(position.type, position.protocol)}</span>
+    <tr className="hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-all duration-200">
+      <td className="px-6 py-5 whitespace-nowrap">
+        <div className="flex items-center space-x-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center shadow-sm">
+            <span className="text-lg">{getTypeIcon(position.type, position.protocol)}</span>
+          </div>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">
+            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
               {displayName}
             </div>
-            <div className="text-sm text-gray-500 truncate">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
               {displayTokens}
             </div>
           </div>
         </div>
       </td>
       
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="flex items-center space-x-2">
-          <span className="text-lg">{getProtocolIcon(position.protocol)}</span>
-          <span className="text-sm font-medium text-gray-900">
+      <td className="px-6 py-5 whitespace-nowrap">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center shadow-sm">
+            <span className="text-base">{getProtocolIcon(position.protocol)}</span>
+          </div>
+          <span className="text-sm font-bold text-slate-900 dark:text-white">
             {getProtocolName(position.protocol)}
           </span>
         </div>
       </td>
       
-      <td className="px-6 py-4 whitespace-nowrap text-right">
-        <div className="text-sm font-semibold text-gray-900">
+      <td className="px-6 py-5 whitespace-nowrap text-right">
+        <div className="text-sm font-bold text-slate-900 dark:text-white">
           {formatCurrency(position.value)}
         </div>
       </td>
       
-      <td className="px-6 py-4 whitespace-nowrap text-right">
-        <div className="text-sm font-medium text-blue-600">
+      <td className="px-6 py-5 whitespace-nowrap text-right">
+        <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
           {position.apy > 0 ? formatPercent(position.apy) : '—'}
         </div>
       </td>
       
-      <td className="px-6 py-4 whitespace-nowrap text-right">
-        <div className="text-sm font-medium text-green-600">
+      <td className="px-6 py-5 whitespace-nowrap text-right">
+        <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
           {(position.claimable && position.claimable > 0) 
             ? formatCurrency(position.claimable) 
             : '—'
@@ -362,8 +424,8 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
         </div>
       </td>
       
-      <td className="px-6 py-4 whitespace-nowrap text-center">
-        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${
+      <td className="px-6 py-5 whitespace-nowrap text-center">
+        <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-full border backdrop-blur-xl ${
           getStatusColor(position.protocol, position.metadata)
         }`}>
           {getStatusText(position.protocol, position.metadata)}
@@ -375,20 +437,20 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
 
 function DeFiPositionsLoader() {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white p-6 rounded-xl border shadow-sm animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-            <div className="h-8 bg-gray-200 rounded w-32"></div>
+          <div key={i} className="p-6 bg-gradient-to-br from-slate-50/80 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/80 rounded-xl border border-slate-200/50 dark:border-slate-600/50 shadow-lg animate-pulse">
+            <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-24 mb-3 animate-shimmer"></div>
+            <div className="h-8 bg-slate-200 dark:bg-slate-600 rounded w-32 animate-shimmer"></div>
           </div>
         ))}
       </div>
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
-        <div className="space-y-4">
+      <div className="p-8 bg-gradient-to-br from-slate-50/80 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/80 rounded-2xl border border-slate-200/50 dark:border-slate-600/50 shadow-lg animate-pulse">
+        <div className="h-6 bg-slate-200 dark:bg-slate-600 rounded w-32 mb-6 animate-shimmer"></div>
+        <div className="space-y-6">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 rounded"></div>
+            <div key={i} className="h-20 bg-slate-200 dark:bg-slate-600 rounded-xl animate-shimmer"></div>
           ))}
         </div>
       </div>
@@ -398,19 +460,40 @@ function DeFiPositionsLoader() {
 
 function NoDeFiPositions() {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-8 text-center">
-      <div className="text-gray-400 mb-4">
-        <span className="text-6xl">🏦</span>
-      </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">No DeFi Positions</h3>
-      <p className="text-gray-600 mb-6">
-        You don't have any active DeFi positions, or they haven't been detected yet.
-      </p>
-      <div className="space-y-2 text-sm text-gray-500">
-        <p>• Uniswap V3 liquidity positions</p>
-        <p>• Aave lending positions</p>
-        <p>• Lido staking positions</p>
-        <p>• And more protocols coming soon...</p>
+    <div className="relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50/30 to-slate-100/30 dark:from-slate-800/30 dark:to-slate-700/30 rounded-2xl"></div>
+      <div className="relative p-12 bg-gradient-to-br from-slate-50/80 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-600/50 shadow-lg text-center">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-400 to-slate-600 rounded-full blur-2xl opacity-10"></div>
+          <div className="relative w-20 h-20 bg-gradient-to-br from-slate-400 to-slate-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+            <span className="text-4xl">🏦</span>
+          </div>
+        </div>
+        <h3 className="text-xl font-black text-slate-900 dark:text-white mb-3">No DeFi Positions</h3>
+        <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
+          You don't have any active DeFi positions, or they haven't been detected yet.
+        </p>
+        <div className="grid grid-cols-2 gap-4 text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+          <div className="p-3 bg-white/50 dark:bg-slate-700/30 rounded-lg">
+            <div className="text-lg mb-1">🦄</div>
+            <div className="font-medium">Uniswap V3</div>
+          </div>
+          <div className="p-3 bg-white/50 dark:bg-slate-700/30 rounded-lg">
+            <div className="text-lg mb-1">👻</div>
+            <div className="font-medium">Aave</div>
+          </div>
+          <div className="p-3 bg-white/50 dark:bg-slate-700/30 rounded-lg">
+            <div className="text-lg mb-1">🏛️</div>
+            <div className="font-medium">Lido</div>
+          </div>
+          <div className="p-3 bg-white/50 dark:bg-slate-700/30 rounded-lg">
+            <div className="text-lg mb-1">🌊</div>
+            <div className="font-medium">Curve</div>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-6">
+          And more protocols coming soon...
+        </p>
       </div>
     </div>
   );

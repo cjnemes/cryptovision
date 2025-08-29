@@ -46,12 +46,12 @@ export function formatTokenAmount(
 }
 
 // Format USD currency
-export function formatCurrency(amount: number, currency = 'USD'): string {
+export function formatCurrency(amount: number, decimals?: number, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: decimals ?? 2,
+    maximumFractionDigits: decimals ?? 2
   }).format(amount)
 }
 

@@ -2,6 +2,7 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { formatCurrency, formatPercent } from '@/lib/utils';
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, CalendarIcon, PresentationChartLineIcon } from '@heroicons/react/24/outline';
 
 interface PortfolioPerformanceProps {
   data: Array<{
@@ -33,240 +34,243 @@ export function PortfolioPerformance({ data, isLoading, timeframe }: PortfolioPe
   
   const isPositive = totalChange >= 0;
   const chartColor = isPositive ? '#10B981' : '#EF4444';
-  const bgColor = isPositive ? '#10B981' : '#EF4444';
+  const bgColor = isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white p-3 border rounded-lg shadow-lg">
-          <p className="font-medium text-gray-900">
+        <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl p-4 border-0 rounded-xl shadow-2xl">
+          <p className="font-semibold text-slate-700 dark:text-slate-200 mb-2">
             {new Date(data.timestamp).toLocaleDateString()}
           </p>
-          <p className="text-lg font-semibold text-gray-900">
+          <p className="text-xl font-black text-slate-900 dark:text-white mb-1">
             {formatCurrency(data.totalValue)}
           </p>
-          <p className={`text-sm ${data.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {data.change >= 0 ? '+' : ''}{formatCurrency(data.change)} ({formatPercent(data.changePercent)})
-          </p>
+          <div className={`flex items-center space-x-2 ${data.change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {data.change >= 0 ? (
+              <ArrowTrendingUpIcon className="w-4 h-4" />
+            ) : (
+              <ArrowTrendingDownIcon className="w-4 h-4" />
+            )}
+            <span className="text-sm font-bold">
+              {data.change >= 0 ? '+' : ''}{formatCurrency(data.change)} ({formatPercent(data.changePercent)})
+            </span>
+          </div>
         </div>
       );
     }
     return null;
   };
 
+  const timeframeLabels = {
+    '24h': '24 Hours',
+    '7d': '7 Days',
+    '30d': '30 Days',
+    '90d': '90 Days',
+    '1y': '1 Year'
+  };
+
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-6">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Portfolio Performance</h3>
-          <div className="flex items-center space-x-4 mt-2">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(latestValue.totalValue)}
-              </p>
-              <p className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                {isPositive ? '+' : ''}{formatCurrency(totalChange)} ({formatPercent(totalChangePercent)})
-              </p>
+    <div className="p-8">
+      {/* Enhanced Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div className="flex items-center space-x-4">
+          <div className="relative">
+            <div className={`absolute -inset-1 rounded-xl blur opacity-30 ${isPositive ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-red-500 to-rose-500'}`}></div>
+            <div className={`relative w-16 h-16 rounded-xl flex items-center justify-center shadow-lg ${isPositive ? 'bg-gradient-to-br from-emerald-500 to-green-500' : 'bg-gradient-to-br from-red-500 to-rose-500'}`}>
+              <PresentationChartLineIcon className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Portfolio Performance</h2>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                <CalendarIcon className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{timeframeLabels[timeframe]}</span>
+              </div>
+              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg ${isPositive ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                <div className={`w-2 h-2 rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`}></div>
+                <span className={`text-sm font-bold ${isPositive ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
+                  {isPositive ? 'Gaining' : 'Declining'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
         
-        {/* Timeframe Selector (placeholder for now) */}
-        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-          {['24h', '7d', '30d', '90d', '1y'].map((period) => (
-            <button
-              key={period}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                timeframe === period 
-                  ? 'bg-white text-gray-900 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              {period}
-            </button>
-          ))}
+        <div className="text-right">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Current Value</div>
+          <div className="text-3xl font-black text-slate-900 dark:text-white mb-2">
+            {formatCurrency(latestValue.totalValue)}
+          </div>
+          <div className={`flex items-center justify-end space-x-2 ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+            {isPositive ? (
+              <ArrowTrendingUpIcon className="w-5 h-5" />
+            ) : (
+              <ArrowTrendingDownIcon className="w-5 h-5" />
+            )}
+            <span className="text-lg font-bold">
+              {isPositive ? '+' : ''}{formatCurrency(totalChange)}
+            </span>
+            <span className="text-sm font-medium">
+              ({formatPercent(totalChangePercent)})
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={bgColor} stopOpacity={0.2}/>
-                <stop offset="95%" stopColor={bgColor} stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-            <XAxis 
-              dataKey="timestamp"
-              tickFormatter={(value) => {
-                const date = new Date(value);
-                if (timeframe === '24h') {
-                  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                } else if (timeframe === '7d') {
-                  return date.toLocaleDateString([], { weekday: 'short' });
-                } else {
-                  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                }
-              }}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 12, fill: '#6B7280' }}
-            />
-            <YAxis 
-              tickFormatter={(value) => {
-                if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-                if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-                return `$${value.toFixed(0)}`;
-              }}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 12, fill: '#6B7280' }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="totalValue"
-              stroke={chartColor}
-              strokeWidth={2}
-              fill="url(#colorGradient)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+      {/* Professional Chart Container */}
+      <div className="relative">
+        <div className={`absolute inset-0 rounded-2xl opacity-5 ${isPositive ? 'bg-gradient-to-br from-emerald-500 to-green-500' : 'bg-gradient-to-br from-red-500 to-rose-500'}`}></div>
+        <div className="relative h-96 p-6 bg-gradient-to-br from-slate-50/50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-700/50 rounded-2xl border border-slate-200/50 dark:border-slate-600/50">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <defs>
+                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={chartColor} stopOpacity={0.05}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.3}/>
+              <XAxis 
+                dataKey="timestamp" 
+                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                stroke="#64748b"
+                fontSize={12}
+                fontWeight="500"
+              />
+              <YAxis 
+                tickFormatter={(value) => formatCurrency(value, 0)}
+                stroke="#64748b"
+                fontSize={12}
+                fontWeight="500"
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="totalValue"
+                stroke={chartColor}
+                strokeWidth={3}
+                fill="url(#colorGradient)"
+                dot={{ fill: chartColor, strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, fill: chartColor, strokeWidth: 2, stroke: '#fff' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Performance Stats */}
-      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="text-center">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">High</p>
-          <p className="text-sm font-semibold text-gray-900">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-600/50">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">24h Change</div>
+          <div className={`text-xl font-bold ${latestValue.change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {latestValue.change >= 0 ? '+' : ''}{formatPercent(latestValue.changePercent)}
+          </div>
+        </div>
+        
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-600/50">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Period Change</div>
+          <div className={`text-xl font-bold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+            {formatPercent(totalChangePercent)}
+          </div>
+        </div>
+        
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-600/50">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Highest</div>
+          <div className="text-xl font-bold text-slate-900 dark:text-white">
             {formatCurrency(Math.max(...chartData.map(d => d.totalValue)))}
-          </p>
+          </div>
         </div>
-        <div className="text-center">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Low</p>
-          <p className="text-sm font-semibold text-gray-900">
+        
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-600/50">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Lowest</div>
+          <div className="text-xl font-bold text-slate-900 dark:text-white">
             {formatCurrency(Math.min(...chartData.map(d => d.totalValue)))}
-          </p>
-        </div>
-        <div className="text-center">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Avg</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {formatCurrency(chartData.reduce((sum, d) => sum + d.totalValue, 0) / chartData.length)}
-          </p>
-        </div>
-        <div className="text-center">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Volatility</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {formatPercent(calculateVolatility(chartData))}
-          </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function generateMockData(timeframe: string) {
-  const now = new Date();
-  const data = [];
-  let intervals = 24;
-  let intervalMs = 60 * 60 * 1000; // 1 hour
-
-  switch (timeframe) {
-    case '24h':
-      intervals = 24;
-      intervalMs = 60 * 60 * 1000; // 1 hour
-      break;
-    case '7d':
-      intervals = 7;
-      intervalMs = 24 * 60 * 60 * 1000; // 1 day
-      break;
-    case '30d':
-      intervals = 30;
-      intervalMs = 24 * 60 * 60 * 1000; // 1 day
-      break;
-    case '90d':
-      intervals = 30;
-      intervalMs = 3 * 24 * 60 * 60 * 1000; // 3 days
-      break;
-    case '1y':
-      intervals = 52;
-      intervalMs = 7 * 24 * 60 * 60 * 1000; // 1 week
-      break;
-  }
-
-  let baseValue = 58650; // Starting portfolio value
-  
-  for (let i = 0; i < intervals; i++) {
-    const timestamp = new Date(now.getTime() - (intervals - i - 1) * intervalMs).toISOString();
-    
-    // Simulate some volatility
-    const change = (Math.random() - 0.5) * 0.05; // ±2.5% random change
-    baseValue *= (1 + change);
-    
-    const changeFromPrevious = i > 0 ? baseValue - data[i - 1].totalValue : 0;
-    const changePercent = i > 0 ? (changeFromPrevious / data[i - 1].totalValue) * 100 : 0;
-    
-    data.push({
-      timestamp,
-      totalValue: Math.round(baseValue),
-      change: Math.round(changeFromPrevious),
-      changePercent: Number(changePercent.toFixed(2))
-    });
-  }
-
-  return data;
-}
-
-function calculateVolatility(data: Array<{ totalValue: number }>) {
-  if (data.length < 2) return 0;
-  
-  const returns = data.slice(1).map((d, i) => 
-    (d.totalValue - data[i].totalValue) / data[i].totalValue
-  );
-  
-  const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-  const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
-  
-  return Math.sqrt(variance) * Math.sqrt(365) * 100; // Annualized volatility
-}
-
 function PortfolioPerformanceLoader() {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-6 animate-pulse">
-      <div className="flex justify-between mb-6">
-        <div>
-          <div className="h-6 bg-gray-200 rounded w-48 mb-2"></div>
-          <div className="h-8 bg-gray-200 rounded w-32 mb-1"></div>
-          <div className="h-4 bg-gray-200 rounded w-24"></div>
-        </div>
-        <div className="h-10 bg-gray-200 rounded w-40"></div>
-      </div>
-      <div className="h-64 bg-gray-200 rounded mb-6"></div>
-      <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="text-center">
-            <div className="h-3 bg-gray-200 rounded w-12 mx-auto mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-16 mx-auto"></div>
+    <div className="p-8 animate-pulse">
+      <div className="flex items-start justify-between mb-8">
+        <div className="flex items-center space-x-4">
+          <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 rounded-xl animate-shimmer"></div>
+          <div>
+            <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg mb-2 animate-shimmer"></div>
+            <div className="w-32 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-shimmer"></div>
           </div>
-        ))}
+        </div>
+        <div className="text-right">
+          <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded mb-2 animate-shimmer"></div>
+          <div className="w-36 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg mb-2 animate-shimmer"></div>
+          <div className="w-28 h-6 bg-slate-200 dark:bg-slate-700 rounded animate-shimmer"></div>
+        </div>
       </div>
+      <div className="h-96 bg-slate-200 dark:bg-slate-700 rounded-2xl animate-shimmer"></div>
     </div>
   );
 }
 
 function EmptyPerformanceChart() {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-6 text-center">
-      <div className="text-gray-400 mb-4">
-        <span className="text-6xl">📈</span>
+    <div className="p-8 text-center">
+      <div className="w-16 h-16 bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl flex items-center justify-center mx-auto mb-6">
+        <PresentationChartLineIcon className="h-8 w-8 text-white" />
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">No Performance Data</h3>
-      <p className="text-gray-600">
-        Historical performance data will appear here once you start tracking your portfolio.
-      </p>
+      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Performance Data</h3>
+      <p className="text-slate-600 dark:text-slate-400">Performance data will appear once you have portfolio activity.</p>
     </div>
   );
+}
+
+function generateMockData(timeframe: string) {
+  const dataPoints = {
+    '24h': 24,
+    '7d': 7,
+    '30d': 30,
+    '90d': 90,
+    '1y': 365
+  };
+  
+  const points = dataPoints[timeframe as keyof typeof dataPoints] || 30;
+  const data = [];
+  const now = new Date();
+  const baseValue = 31500; // Starting value - matches approximate real portfolio value
+  
+  for (let i = points - 1; i >= 0; i--) {
+    const date = new Date(now);
+    if (timeframe === '24h') {
+      date.setHours(date.getHours() - i);
+    } else {
+      date.setDate(date.getDate() - i);
+    }
+    
+    // Generate realistic portfolio movement
+    const volatility = 0.05; // 5% daily volatility
+    const trend = 0.001; // Slight upward trend
+    const randomChange = (Math.random() - 0.5) * volatility;
+    const trendChange = trend * (points - i) / points;
+    
+    const multiplier = 1 + randomChange + trendChange;
+    const totalValue = Math.round(baseValue * multiplier);
+    
+    const previousValue = i === points - 1 ? baseValue : data[data.length - 1]?.totalValue || baseValue;
+    const change = totalValue - previousValue;
+    const changePercent = (change / previousValue) * 100;
+    
+    data.push({
+      timestamp: date.toISOString(),
+      totalValue,
+      change,
+      changePercent
+    });
+  }
+  
+  return data;
 }

@@ -66,31 +66,31 @@ export function DeFiSummary() {
         </div>
       )}
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">
+      {/* Quick Stats - Fixed for sidebar width */}
+      <div className="space-y-4 mb-6">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Total Value</span>
+          <span className="text-lg font-bold text-gray-900">
             {formatCurrency(summary.totalValue)}
-          </p>
-          <p className="text-sm text-gray-600">Total Value</p>
+          </span>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-green-600">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Claimable</span>
+          <span className="text-lg font-bold text-green-600">
             {formatCurrency(summary.totalClaimable)}
-          </p>
-          <p className="text-sm text-gray-600">Claimable</p>
+          </span>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-blue-600">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Avg APY</span>
+          <span className="text-lg font-bold text-blue-600">
             {formatPercent(summary.averageAPY)}
-          </p>
-          <p className="text-sm text-gray-600">Avg APY</p>
+          </span>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Protocols</span>
+          <span className="text-lg font-bold text-gray-900">
             {summary.protocolCount}
-          </p>
-          <p className="text-sm text-gray-600">Protocols</p>
+          </span>
         </div>
       </div>
 

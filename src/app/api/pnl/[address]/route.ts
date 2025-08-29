@@ -26,38 +26,93 @@ export async function GET(
       // Mock P&L data based on real token balances
       const mockPnLData = {
         address,
-        totalPnL: 245.67,
-        totalPnLPercent: 12.34,
-        currentValue: 2241.89,
-        totalInvested: 1996.22,
-        realizedPnL: 89.45,
-        unrealizedPnL: 156.22,
+        totalPnL: 18450.75,
+        totalPnLPercent: 27.8,
+        currentValue: 84832.50,
+        totalInvested: 66381.75,
+        realizedPnL: 4250.30,
+        unrealizedPnL: 14200.45,
+        dayChange: 1240.60,
+        dayChangePercent: 1.48,
+        weekChange: -850.25,
+        weekChangePercent: -0.99,
+        monthChange: 5670.80,
+        monthChangePercent: 7.17,
+        bestPerformer: {
+          symbol: 'AERO',
+          pnl: 12450.50,
+          pnlPercent: 45.2
+        },
+        worstPerformer: {
+          symbol: 'cbETH',
+          pnl: -180.75,
+          pnlPercent: -1.2
+        },
         breakdown: [
+          {
+            address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631',
+            symbol: 'AERO',
+            balance: 27910.72, // Total veAERO locked
+            averagePrice: 0.78,
+            currentPrice: 1.13,
+            invested: 21770.16,
+            currentValue: 31539.21,
+            pnl: 9769.05,
+            pnlPercent: 44.87
+          },
           {
             address: '0x0000000000000000000000000000000000000000',
             symbol: 'ETH',
-            balance: 0.111, // Combined ETH from both chains
-            averagePrice: 3150.00,
-            currentPrice: 4288.86,
-            invested: 349.65,
-            currentValue: 476.02,
-            pnl: 126.37,
-            pnlPercent: 36.13
+            balance: 0.0159,
+            averagePrice: 3850.00,
+            currentPrice: 4302.15,
+            invested: 61.22,
+            currentValue: 68.40,
+            pnl: 7.18,
+            pnlPercent: 11.73
           },
           {
-            address: '0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b',
-            symbol: 'VIRTUAL',
-            balance: 1.25,
-            averagePrice: 45.50,
-            currentPrice: 52.30,
-            invested: 56.88,
-            currentValue: 65.38,
-            pnl: 8.50,
-            pnlPercent: 14.94
+            address: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22',
+            symbol: 'cbETH',
+            balance: 7.85, // Moonwell position
+            averagePrice: 4200.00,
+            currentPrice: 4680.50,
+            invested: 32970.00,
+            currentValue: 36741.93,
+            pnl: 3771.93,
+            pnlPercent: 11.44
+          },
+          {
+            address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+            symbol: 'USDC',
+            balance: 15234.67,
+            averagePrice: 1.00,
+            currentPrice: 1.00,
+            invested: 15234.67,
+            currentValue: 15234.67,
+            pnl: 0.00,
+            pnlPercent: 0.00
+          },
+          {
+            address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+            symbol: 'DAI',
+            balance: 850.25,
+            averagePrice: 0.998,
+            currentPrice: 1.001,
+            invested: 848.55,
+            currentValue: 851.10,
+            pnl: 2.55,
+            pnlPercent: 0.30
           }
         ],
+        transactions: {
+          total: 124,
+          thisMonth: 18,
+          avgPerMonth: 12.4,
+          totalGasSpent: 450.75
+        },
         lastCalculated: new Date().toISOString(),
-        note: 'Mock P&L data - database not available'
+        note: 'Demo P&L analysis - connect database for real transaction history'
       };
       
       return NextResponse.json(mockPnLData);
