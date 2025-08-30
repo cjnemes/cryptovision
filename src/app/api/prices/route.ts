@@ -35,6 +35,8 @@ const TOKEN_ID_MAP: Record<string, string> = {
   'THE': 'thena',
   'GS': 'gammaswap',
   'MORPHO': 'morpho',
+  'SEAM': 'seamless-protocol',
+  'EXTRA': 'extra-finance',
 }
 
 export async function POST(request: NextRequest) {

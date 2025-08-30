@@ -80,6 +80,8 @@ class PriceService {
       'THE': 'thena',
       'GS': 'gammaswap',
       'MORPHO': 'morpho',
+      'SEAM': 'seamless-protocol',
+      'EXTRA': 'extra-finance',
     };
     
     return mapping[symbol.toUpperCase()] || null;
@@ -139,6 +141,8 @@ class PriceService {
       'THE': 0.3466, // Updated from CoinGecko API (Thena Finance)
       'GS': 0.06, // GammaSwap token fallback price
       'MORPHO': 2.15, // Morpho token fallback price
+      'SEAM': 0.48, // Seamless Protocol token fallback price
+      'EXTRA': 0.037, // Extra Finance token fallback price based on search results
     };
     
     return fallbackPrices[symbol.toUpperCase()] || 1.0;

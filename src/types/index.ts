@@ -20,13 +20,13 @@ export interface TokenBalance {
 
 export interface DeFiPosition {
   id: string;
-  protocol: 'uniswap-v3' | 'aave' | 'compound' | 'lido' | 'curve' | 'aerodrome' | 'moonwell' | 'gammaswap' | 'mamo' | 'thena' | 'morpho' | 'manual';
+  protocol: 'uniswap-v3' | 'aave' | 'compound' | 'lido' | 'curve' | 'aerodrome' | 'moonwell' | 'gammaswap' | 'mamo' | 'thena' | 'morpho' | 'manual' | 'extra-finance' | 'bridges';
   type: 'lending' | 'liquidity' | 'staking' | 'farming' | 'yield-farming' | 'token' | 'liquidity-pool';
   tokens: TokenBalance[];
   apy: number;
   value: number;
   claimable?: number;
-  metadata?: UniswapV3Position | AavePosition | StakingPosition | AerodromePosition | MoonwellPosition | ManualPosition | Record<string, any>;
+  metadata?: UniswapV3Position | AavePosition | StakingPosition | AerodromePosition | MoonwellPosition | ManualPosition | BridgePosition | Record<string, any>;
 }
 
 export interface UniswapV3Position {
@@ -118,6 +118,18 @@ export interface TransactionData {
 }
 
 // Manual positions system types
+export interface BridgePosition {
+  bridgeName: string;
+  direction: string;
+  status: 'pending' | 'claimable' | 'completed' | 'active';
+  bridgeType: 'official' | 'stargate' | 'layerzero';
+  estimatedCompleteTime?: number;
+  transactionHash?: string;
+  chainName?: string;
+  poolId?: number;
+  liquidityAmount?: string;
+}
+
 export interface ManualPosition {
   id: string;
   walletAddress: string;
@@ -130,6 +142,7 @@ export interface ManualPosition {
     name: string;
     amount: string;
     decimals: number;
+    price?: number;
   }[];
   apy?: number;
   claimableAmount?: string;

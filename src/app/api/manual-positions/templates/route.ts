@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
       case 'gammaswap-staking':
         template = manualPositionsService.createGammaSwapStakingTemplate(walletAddress);
         break;
+      case 'extra-finance-staking':
+        template = manualPositionsService.createExtraFinanceStakingTemplate(walletAddress);
+        break;
       default:
         // Return a generic template
         template = {

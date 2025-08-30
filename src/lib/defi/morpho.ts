@@ -1,19 +1,30 @@
 import { ethers } from 'ethers';
 import { DeFiPosition, TokenBalance } from '@/types';
 import { priceService } from '../prices';
+import { safeContractCall } from '../utils/error-handler';
 
 // Morpho constants for Base network (where cbBTC vault exists)
 const MORPHO_TOKEN_BASE = '0x58D97B57BB95320F9a05dC918Aef65434969c2B2'; // MORPHO token on Base
 const CBBTC_TOKEN_BASE = '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf'; // cbBTC token on Base
 
-// Known Moonwell Morpho vault addresses (these would need to be confirmed)
-// Based on the research, these are estimated addresses - would need actual deployment addresses
-const MOONWELL_MORPHO_VAULTS = {
+// Seamless Protocol tokens on Base
+const SEAMLESS_TOKENS = {
+  SEAM: '0x1C7a460413dD4e964f96D8dFC56E7223cE88CD85', // SEAM Token (Base)
+  ES_SEAM: '0x998e44232BEF4F8B033e5A5175BDC97F2B10d5e5', // EscrowSEAM (esSEAM)
+};
+
+// Known Morpho vault addresses on Base network
+const MORPHO_VAULTS = {
   base: {
-    cbBTC_VAULT: '0x543257ef2161176d7c8cd90ba65c2d4caef5a796', // Moonwell Frontier cbBTC vault
-    ETH_VAULT: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1',   // Moonwell Flagship ETH vault  
-    EURC_VAULT: '0xf24608E0CCb972b0b0f4A6446a0BBf58c701a026',  // Moonwell Flagship EURC vault
-    // Removed placeholder USDC vault address to prevent errors
+    // Seamless Vaults on Morpho (newly migrated, $70M+ TVL)
+    SEAMLESS_USDC_VAULT: '0x616a4E1db48e22028f6bbf20444Cd3b8e3273738', // Seamless USDC Vault
+    SEAMLESS_CBBTC_VAULT: '0x5a47C803488FE2BB0A0EAaf346b420e4dF22F3C7', // Seamless cbBTC Vault
+    SEAMLESS_WETH_VAULT: '0x27d8c7273fd3fcc6956a0b370ce5fd4a7fc65c18', // Seamless WETH Vault
+    
+    // Moonwell Morpho vaults (estimated addresses - may need verification)
+    MOONWELL_CBBTC_VAULT: '0x543257ef2161176d7c8cd90ba65c2d4caef5a796', // Moonwell Frontier cbBTC vault
+    MOONWELL_ETH_VAULT: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1',   // Moonwell Flagship ETH vault  
+    MOONWELL_EURC_VAULT: '0xf24608E0CCb972b0b0f4A6446a0BBf58c701a026',  // Moonwell Flagship EURC vault
   }
 };
 
@@ -60,6 +71,7 @@ export interface MorphoService {
   getPositions(walletAddress: string): Promise<DeFiPosition[]>;
   getVaultPositions(walletAddress: string): Promise<DeFiPosition[]>;
   getMorphoTokenBalance(walletAddress: string): Promise<TokenBalance | null>;
+  getSeamlessTokenBalances(walletAddress: string): Promise<TokenBalance[]>;
 }
 
 export class MorphoIntegration implements MorphoService {
@@ -93,6 +105,25 @@ export class MorphoIntegration implements MorphoService {
         });
       }
 
+      // Get Seamless (SEAM) token balances
+      const seamlessTokens = await this.getSeamlessTokenBalances(walletAddress);
+      for (const token of seamlessTokens) {
+        positions.push({
+          id: `seamless-${token.symbol.toLowerCase()}-${walletAddress}`,
+          protocol: 'seamless',
+          type: 'token',
+          tokens: [token],
+          value: token.value,
+          apy: 0,
+          claimable: 0,
+          metadata: {
+            description: `${token.symbol} Token Holdings`,
+            isNativeToken: true,
+            platform: 'Seamless Protocol',
+          }
+        });
+      }
+
       // Get vault positions
       const vaultPositions = await this.getVaultPositions(walletAddress);
       positions.push(...vaultPositions);
@@ -113,18 +144,32 @@ export class MorphoIntegration implements MorphoService {
     try {
       const contract = new ethers.Contract(MORPHO_TOKEN_BASE, ERC20_ABI, this.provider);
       
-      // First check if the balance is non-zero before fetching metadata
-      const balance = await contract.balanceOf(walletAddress);
-      if (balance === 0n) {
+      // First check if the balance is non-zero before fetching metadata using safe contract call
+      const balance = await safeContractCall(
+        () => contract.balanceOf(walletAddress),
+        'morpho',
+        'balanceOf',
+        MORPHO_TOKEN_BASE
+      );
+      
+      if (balance === null || balance === 0n) {
         return null;
       }
 
-      // If balance exists, then fetch metadata
-      const [symbol, decimals, name] = await Promise.all([
-        contract.symbol(),
-        contract.decimals(),
-        contract.name(),
+      // If balance exists, then fetch metadata using safe contract calls
+      const tokenCalls = await Promise.all([
+        safeContractCall(() => contract.symbol(), 'morpho', 'symbol', MORPHO_TOKEN_BASE),
+        safeContractCall(() => contract.decimals(), 'morpho', 'decimals', MORPHO_TOKEN_BASE),
+        safeContractCall(() => contract.name(), 'morpho', 'name', MORPHO_TOKEN_BASE)
       ]);
+      
+      const [symbol, decimals, name] = tokenCalls;
+      
+      // Skip if we couldn't get essential token info
+      if (!symbol || !name || decimals === null) {
+        console.debug(`Could not fetch MORPHO token metadata at ${MORPHO_TOKEN_BASE}`);
+        return null;
+      }
 
       const balanceFormatted = parseFloat(ethers.formatUnits(balance, decimals));
       const price = await priceService.getPrice('MORPHO') || priceService.getFallbackPrice('MORPHO');
@@ -150,7 +195,7 @@ export class MorphoIntegration implements MorphoService {
     const positions: DeFiPosition[] = [];
 
     // Try to check known vault addresses
-    for (const [vaultName, vaultAddress] of Object.entries(MOONWELL_MORPHO_VAULTS.base)) {
+    for (const [vaultName, vaultAddress] of Object.entries(MORPHO_VAULTS.base)) {
       if (vaultAddress.startsWith('0x0000000000000000000000000000000000000')) {
         console.log(`Skipping placeholder vault address: ${vaultName}`);
         continue; // Skip placeholder addresses
@@ -236,6 +281,54 @@ export class MorphoIntegration implements MorphoService {
     }
   }
 
+  async getSeamlessTokenBalances(walletAddress: string): Promise<TokenBalance[]> {
+    const tokens: TokenBalance[] = [];
+
+    // Check SEAM and esSEAM token balances
+    for (const [tokenName, tokenAddress] of Object.entries(SEAMLESS_TOKENS)) {
+      try {
+        const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
+        const balance = await contract.balanceOf(walletAddress);
+        
+        if (balance === 0n) {
+          continue; // Skip zero balances
+        }
+
+        const [symbol, decimals, name] = await Promise.all([
+          contract.symbol(),
+          contract.decimals(),
+          contract.name(),
+        ]);
+
+        const balanceFormatted = parseFloat(ethers.formatUnits(balance, decimals));
+        
+        // Get price - SEAM is likely to be available, esSEAM might not have market price
+        let price = 0;
+        if (symbol === 'SEAM') {
+          price = await priceService.getPrice('SEAM') || 0; // Try to get SEAM price
+        }
+        
+        const value = balanceFormatted * price;
+
+        tokens.push({
+          address: tokenAddress,
+          symbol,
+          name,
+          balance: balanceFormatted.toString(),
+          decimals: Number(decimals),
+          price,
+          value,
+        });
+
+        console.log(`Found ${symbol} balance: ${balanceFormatted} (${value > 0 ? `$${value.toFixed(2)}` : 'No price data'})`);
+      } catch (error) {
+        console.warn(`Error fetching ${tokenName} balance:`, error);
+      }
+    }
+
+    return tokens;
+  }
+
   // Experimental: Try to detect Morpho vault positions by looking for vault-like tokens
   async detectMorphoVaultTokens(walletAddress: string, positions: DeFiPosition[]): Promise<void> {
     try {
@@ -278,12 +371,12 @@ export class MorphoIntegration implements MorphoService {
         apy: 3.8, // Estimated BTC lending APY
         claimable: 0,
         metadata: {
-          vaultAddress: MOONWELL_MORPHO_VAULTS.base.cbBTC_VAULT,
-          vaultName: 'Moonwell Frontier cbBTC',
-          description: 'Morpho cbBTC Vault (Moonwell Frontier)',
+          vaultAddress: MORPHO_VAULTS.base.SEAMLESS_CBBTC_VAULT,
+          vaultName: 'Seamless cbBTC Vault',
+          description: 'Morpho cbBTC Vault (Seamless)',
           underlyingAsset: 'cbBTC',
           shares: '0.025',
-          platform: 'Moonwell',
+          platform: 'Seamless',
         }
       },
       {
@@ -319,7 +412,7 @@ export function createMorphoService(): MorphoService {
 export const MORPHO_CONSTANTS = {
   MORPHO_TOKEN: MORPHO_TOKEN_BASE,
   CBBTC_TOKEN: CBBTC_TOKEN_BASE,
-  VAULTS: MOONWELL_MORPHO_VAULTS.base,
+  VAULTS: MORPHO_VAULTS.base,
   CHAIN_ID: 8453, // Base chain ID
   NETWORK_NAME: 'Base',
 };

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { defiAggregator } from '@/lib/defi/aggregator';
+import { manualPositionsService } from '@/lib/manual-positions';
 import { isValidAddress, serializeBigInt } from '@/lib/utils';
 
 export async function GET(
@@ -27,13 +28,20 @@ export async function GET(
     // Use real data if Alchemy API key is configured, otherwise use mock data
     const useMockData = !process.env.ALCHEMY_API_KEY || process.env.ALCHEMY_API_KEY === 'demo' || process.env.ALCHEMY_API_KEY === 'your_alchemy_api_key_here';
 
-    let positions;
+    // Get auto-detected positions
+    let autoPositions;
     if (useMockData) {
       console.log('Using mock DeFi data for development');
-      positions = await defiAggregator.getMockPositions(address);
+      autoPositions = await defiAggregator.getMockPositions(address);
     } else {
-      positions = await defiAggregator.getAllPositions(address);
+      autoPositions = await defiAggregator.getAllPositions(address);
     }
+
+    // Get manual positions and convert them to DeFi positions
+    const manualPositions = await manualPositionsService.convertToDeFiPositions(address);
+
+    // Combine both auto-detected and manual positions
+    const positions = [...autoPositions, ...manualPositions];
 
     // Calculate summary statistics
     const totalValue = positions.reduce((sum, position) => sum + position.value, 0);
@@ -95,12 +103,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let positions;
+    // Get auto-detected positions
+    let autoPositions;
     if (protocol) {
-      positions = await defiAggregator.getPositionsByProtocol(address, protocol);
+      autoPositions = await defiAggregator.getPositionsByProtocol(address, protocol);
     } else {
-      positions = await defiAggregator.getAllPositions(address);
+      autoPositions = await defiAggregator.getAllPositions(address);
     }
+
+    // Get manual positions
+    const manualPositions = await manualPositionsService.convertToDeFiPositions(address);
+    
+    // Filter manual positions by protocol if specified
+    const filteredManualPositions = protocol 
+      ? manualPositions.filter(pos => pos.protocol.toLowerCase() === protocol.toLowerCase())
+      : manualPositions;
+
+    // Combine both auto-detected and manual positions
+    const positions = [...autoPositions, ...filteredManualPositions];
 
     // Serialize the response data to convert BigInt values to strings
     const responseData = serializeBigInt({

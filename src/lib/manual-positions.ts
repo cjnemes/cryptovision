@@ -186,6 +186,29 @@ export class ManualPositionsService {
   }
 
   /**
+   * Create an Extra Finance staking position template
+   */
+  createExtraFinanceStakingTemplate(walletAddress: string): Omit<ManualPosition, 'id' | 'createdAt' | 'updatedAt'> {
+    return {
+      walletAddress,
+      protocol: 'Extra Finance',
+      type: 'staking',
+      description: 'Extra Finance Staked EXTRA Tokens (veEXTRA)',
+      tokens: [{
+        address: '0x2dad3a13ef0c6366220f989157009e501e7938f8', // EXTRA token on Base
+        symbol: 'veEXTRA',
+        name: 'Vote Escrowed EXTRA',
+        amount: '0', // User will fill this in
+        decimals: 18,
+      }],
+      apy: 162, // Up to 162% APR as mentioned in documentation
+      claimableAmount: '0', // Claimable rewards amount
+      notes: 'Manually tracked Extra Finance staking position. Stake EXTRA tokens to earn up to 162% APR and unlock higher leverage for yield farming.',
+      isActive: true,
+    };
+  }
+
+  /**
    * Generate a unique ID for manual positions
    */
   private generateId(): string {

@@ -1,21 +1,47 @@
 'use client';
 
-import { usePnLData } from '@/hooks/usePnLData';
+import { useDeFiPositions } from '@/hooks/useDeFiPositions';
+import { usePerformanceTracking } from '@/hooks/usePerformanceTracking';
 import { formatCurrency, formatPercent } from '@/lib/utils';
-import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/outline';
+import { formatPnL, formatPnLPercent, getPnLColorClass } from '@/lib/analytics/performance-tracker';
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, TrendingUpIcon, TrendingDownIcon } from '@heroicons/react/24/outline';
 
 export function PnLDashboard() {
-  const { data: pnlData, isLoading, error } = usePnLData();
+  // Get current positions
+  const { positions, isLoading: positionsLoading } = useDeFiPositions();
+  
+  // Get performance metrics
+  const {
+    performanceMetrics,
+    isLoading: pnlLoading,
+    error,
+    getTotalPnL,
+    getPortfolioValueHistory
+  } = usePerformanceTracking(positions, { autoRefresh: true });
+  
+  const isLoading = positionsLoading || pnlLoading;
 
   if (isLoading) {
     return <PnLDashboardLoader />;
   }
 
-  if (error || !pnlData) {
+  if (error || !performanceMetrics) {
     return <PnLDashboardError />;
   }
 
-  const isProfit = pnlData.totalPnL >= 0;
+  const totalPnL = getTotalPnL();
+  const isProfit = totalPnL.amount >= 0;
+  
+  // Get top and worst performers
+  const topPerformers = [...performanceMetrics.positions]
+    .filter(p => p.unrealizedPnL !== 0)
+    .sort((a, b) => b.unrealizedPnLPercent - a.unrealizedPnLPercent)
+    .slice(0, 5);
+    
+  const worstPerformers = [...performanceMetrics.positions]
+    .filter(p => p.unrealizedPnL !== 0)
+    .sort((a, b) => a.unrealizedPnLPercent - b.unrealizedPnLPercent)
+    .slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -35,123 +61,127 @@ export function PnLDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="text-center">
-            <p className="text-sm text-gray-500 mb-1">Total P&L</p>
-            <p className={`text-2xl font-bold ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-              {isProfit ? '+' : ''}{formatCurrency(pnlData.totalPnL)}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-xl">
+            <div className="flex items-center justify-center mb-2">
+              {isProfit ? (
+                <TrendingUpIcon className="w-6 h-6 text-green-500 mr-2" />
+              ) : (
+                <TrendingDownIcon className="w-6 h-6 text-red-500 mr-2" />
+              )}
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Total P&L</p>
+            </div>
+            <p className={`text-3xl font-black mb-1 ${getPnLColorClass(totalPnL.amount).text}`}>
+              {formatPnL(totalPnL.amount)}
             </p>
-            <p className={`text-sm ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-              ({isProfit ? '+' : ''}{formatPercent(pnlData.totalPnLPercent)})
+            <p className={`text-sm font-semibold ${getPnLColorClass(totalPnL.percent).text}`}>
+              {formatPnLPercent(totalPnL.percent)}
             </p>
           </div>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-500 mb-1">Current Value</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {formatCurrency(pnlData.currentValue)}
+          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl">
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2">Current Value</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white mb-1">
+              {formatCurrency(performanceMetrics.totalValue)}
             </p>
-            <p className="text-sm text-gray-500">Portfolio Value</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Portfolio Value</p>
           </div>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-500 mb-1">Total Invested</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {formatCurrency(pnlData.totalInvested)}
+          <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-xl">
+            <p className="text-sm text-amber-600 dark:text-amber-400 font-medium mb-2">Entry Value</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white mb-1">
+              {formatCurrency(performanceMetrics.totalEntryValue)}
             </p>
-            <p className="text-sm text-gray-500">Cost Basis</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Cost Basis</p>
           </div>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-500 mb-1">Realized P&L</p>
-            <p className={`text-2xl font-bold ${pnlData.realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {pnlData.realizedPnL >= 0 ? '+' : ''}{formatCurrency(pnlData.realizedPnL)}
+          <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl">
+            <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mb-2">24h Change</p>
+            <p className={`text-2xl font-black mb-1 ${getPnLColorClass(performanceMetrics.dailyChange).text}`}>
+              {formatPnL(performanceMetrics.dailyChange)}
             </p>
-            <p className="text-sm text-gray-500">From Trades</p>
+            <p className={`text-xs font-semibold ${getPnLColorClass(performanceMetrics.dailyChangePercent).text}`}>
+              {formatPnLPercent(performanceMetrics.dailyChangePercent)}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* P&L Breakdown */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Position Breakdown</h3>
+      {/* Position P&L Breakdown */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6 flex items-center">
+          <TrendingUpIcon className="w-5 h-5 mr-2 text-blue-500" />
+          Position Performance
+        </h3>
         
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Asset</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Balance</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Avg Price</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Current Price</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Invested</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Current Value</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">P&L</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">P&L %</th>
+              <tr className="border-b border-slate-200 dark:border-slate-600">
+                <th className="text-left py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">Position</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">Protocol</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">Entry Value</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">Current Value</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">P&L</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-slate-600 dark:text-slate-400">P&L %</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {pnlData.breakdown.map((position, index) => {
-                const positionIsProfit = position.pnl >= 0;
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
+              {performanceMetrics.positions.map((position, index) => {
+                const positionData = positions.find(p => p.id === position.positionId);
+                if (!positionData) return null;
                 
                 return (
-                  <tr key={position.address} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                  <tr key={position.positionId} className={`${index % 2 === 0 ? 'bg-slate-50 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-800'} hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors`}>
                     <td className="py-4 px-4">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                          <span className="text-xs font-medium text-gray-600">
-                            {position.symbol.slice(0, 2)}
+                        <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center mr-3">
+                          <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                            {positionData.protocol === 'uniswap-v3' ? '🦄' : 
+                             positionData.protocol === 'aave' ? '👻' :
+                             positionData.protocol === 'moonwell' ? '🌙' :
+                             positionData.protocol === 'aerodrome' ? '🛩️' : '💎'}
                           </span>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{position.symbol}</p>
-                          <p className="text-xs text-gray-500">
-                            {position.address.slice(0, 6)}...{position.address.slice(-4)}
+                          <p className="font-medium text-slate-900 dark:text-white text-sm">
+                            {position.type} Position
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {positionData.tokens.map(t => t.symbol).join(' / ')}
                           </p>
                         </div>
                       </div>
                     </td>
+                    <td className="py-4 px-4">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
+                        {position.protocol}
+                      </span>
+                    </td>
                     <td className="py-4 px-4 text-right">
-                      <p className="font-medium text-gray-900">
-                        {position.balance.toLocaleString(undefined, { 
-                          maximumFractionDigits: 4 
-                        })}
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
+                        {formatCurrency(position.entryValue)}
                       </p>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <p className="text-gray-900">
-                        {formatCurrency(position.avgBuyPrice)}
-                      </p>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <p className="text-gray-900">
-                        {formatCurrency(position.currentPrice)}
-                      </p>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <p className="text-gray-900">
-                        {formatCurrency(position.invested)}
-                      </p>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <p className="font-medium text-gray-900">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
                         {formatCurrency(position.currentValue)}
                       </p>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <p className={`font-medium ${positionIsProfit ? 'text-green-600' : 'text-red-600'}`}>
-                        {positionIsProfit ? '+' : ''}{formatCurrency(position.pnl)}
+                      <p className={`font-semibold text-sm ${getPnLColorClass(position.unrealizedPnL).text}`}>
+                        {formatPnL(position.unrealizedPnL)}
                       </p>
                     </td>
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end">
-                        {positionIsProfit ? (
-                          <ArrowTrendingUpIcon className="h-4 w-4 text-green-600 mr-1" />
+                        {position.unrealizedPnL >= 0 ? (
+                          <ArrowTrendingUpIcon className={`h-4 w-4 mr-1 ${getPnLColorClass(position.unrealizedPnL).text.replace('text-', 'text-')}`} />
                         ) : (
-                          <ArrowTrendingDownIcon className="h-4 w-4 text-red-600 mr-1" />
+                          <ArrowTrendingDownIcon className={`h-4 w-4 mr-1 ${getPnLColorClass(position.unrealizedPnL).text.replace('text-', 'text-')}`} />
                         )}
-                        <p className={`font-medium ${positionIsProfit ? 'text-green-600' : 'text-red-600'}`}>
-                          {positionIsProfit ? '+' : ''}{formatPercent(position.pnlPercent)}
+                        <p className={`font-semibold text-sm ${getPnLColorClass(position.unrealizedPnLPercent).text}`}>
+                          {formatPnLPercent(position.unrealizedPnLPercent)}
                         </p>
                       </div>
                     </td>
@@ -163,52 +193,93 @@ export function PnLDashboard() {
         </div>
       </div>
 
-      {/* Additional Metrics */}
+      {/* Performance Analysis */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border shadow-sm p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h4>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Unrealized P&L</span>
-              <span className={`font-medium ${pnlData.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {pnlData.unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(pnlData.unrealizedPnL)}
-              </span>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm p-6">
+          <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+            <TrendingUpIcon className="w-5 h-5 mr-2 text-emerald-500" />
+            Time-based Performance
+          </h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+              <span className="text-slate-600 dark:text-slate-400 font-medium">24h Change</span>
+              <div className="text-right">
+                <span className={`font-semibold ${getPnLColorClass(performanceMetrics.dailyChange).text}`}>
+                  {formatPnL(performanceMetrics.dailyChange)}
+                </span>
+                <div className={`text-sm ${getPnLColorClass(performanceMetrics.dailyChangePercent).text}`}>
+                  {formatPnLPercent(performanceMetrics.dailyChangePercent)}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Realized P&L</span>
-              <span className={`font-medium ${pnlData.realizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {pnlData.realizedPnL >= 0 ? '+' : ''}{formatCurrency(pnlData.realizedPnL)}
-              </span>
+            
+            <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+              <span className="text-slate-600 dark:text-slate-400 font-medium">7d Change</span>
+              <div className="text-right">
+                <span className={`font-semibold ${getPnLColorClass(performanceMetrics.weeklyChange).text}`}>
+                  {formatPnL(performanceMetrics.weeklyChange)}
+                </span>
+                <div className={`text-sm ${getPnLColorClass(performanceMetrics.weeklyChangePercent).text}`}>
+                  {formatPnLPercent(performanceMetrics.weeklyChangePercent)}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between pt-2 border-t">
-              <span className="font-medium text-gray-900">Total Return</span>
-              <span className={`font-bold ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                {formatPercent(pnlData.totalPnLPercent)}
-              </span>
+            
+            <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+              <span className="text-slate-600 dark:text-slate-400 font-medium">30d Change</span>
+              <div className="text-right">
+                <span className={`font-semibold ${getPnLColorClass(performanceMetrics.monthlyChange).text}`}>
+                  {formatPnL(performanceMetrics.monthlyChange)}
+                </span>
+                <div className={`text-sm ${getPnLColorClass(performanceMetrics.monthlyChangePercent).text}`}>
+                  {formatPnLPercent(performanceMetrics.monthlyChangePercent)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border shadow-sm p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h4>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm p-6">
+          <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+            <ArrowTrendingUpIcon className="w-5 h-5 mr-2 text-emerald-500" />
+            Top Performers
+          </h4>
           <div className="space-y-3">
-            {pnlData.breakdown
-              .filter(p => p.pnl !== 0)
-              .sort((a, b) => b.pnlPercent - a.pnlPercent)
-              .slice(0, 3)
-              .map((position, index) => (
-                <div key={position.address} className="flex items-center justify-between">
+            {topPerformers.slice(0, 5).map((position, index) => {
+              const positionData = positions.find(p => p.id === position.positionId);
+              if (!positionData) return null;
+              
+              return (
+                <div key={position.positionId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600/50 transition-colors">
                   <div className="flex items-center">
-                    <span className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium mr-3">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${
+                      index === 0 ? 'bg-yellow-200 text-yellow-800' :
+                      index === 1 ? 'bg-gray-200 text-gray-700' :
+                      index === 2 ? 'bg-amber-200 text-amber-800' :
+                      'bg-slate-200 text-slate-700'
+                    }`}>
                       {index + 1}
                     </span>
-                    <span className="font-medium text-gray-900">{position.symbol}</span>
+                    <div>
+                      <span className="font-medium text-slate-900 dark:text-white text-sm">
+                        {position.protocol}
+                      </span>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {positionData.tokens.map(t => t.symbol).join('/')}
+                      </div>
+                    </div>
                   </div>
-                  <span className={`font-semibold ${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {position.pnl >= 0 ? '+' : ''}{formatPercent(position.pnlPercent)}
-                  </span>
+                  <div className="text-right">
+                    <span className={`font-bold text-sm ${getPnLColorClass(position.unrealizedPnL).text}`}>
+                      {formatPnLPercent(position.unrealizedPnLPercent)}
+                    </span>
+                    <div className={`text-xs ${getPnLColorClass(position.unrealizedPnL).text}`}>
+                      {formatPnL(position.unrealizedPnL)}
+                    </div>
+                  </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -246,13 +317,13 @@ function PnLDashboardLoader() {
 
 function PnLDashboardError() {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-6 text-center">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm p-6 text-center">
       <div className="text-gray-400 mb-4">
         <span className="text-6xl">⚠️</span>
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load P&L Data</h3>
-      <p className="text-gray-600">
-        There was an error loading your profit/loss information. Please try again later.
+      <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">Unable to Load P&L Data</h3>
+      <p className="text-slate-600 dark:text-slate-400">
+        There was an error loading your profit/loss information. Please try connecting your wallet or adding DeFi positions.
       </p>
     </div>
   );

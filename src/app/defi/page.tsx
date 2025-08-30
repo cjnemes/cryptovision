@@ -4,13 +4,19 @@ import { useAccount } from 'wagmi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConnectButton } from "@/components/wallet/ConnectButton"
 import { DeFiPositions } from "@/components/portfolio/DeFiPositions"
+import { PortfolioInsights } from "@/components/PortfolioInsights"
+import { ManualPositions } from "@/components/ManualPositions"
+import { PortfolioAnalytics } from "@/components/portfolio/PortfolioAnalytics"
+import { YieldOptimizer } from "@/components/portfolio/YieldOptimizer"
 import { useDeFiPositions } from "@/hooks/useDeFiPositions"
 import Link from "next/link"
-import { ArrowLeftIcon, SparklesIcon } from "@heroicons/react/24/outline"
+import { useState } from "react"
+import { ArrowLeftIcon, SparklesIcon, ChartBarIcon, PlusCircleIcon, CogIcon, ChartPieIcon, LightBulbIcon } from "@heroicons/react/24/outline"
 
 export default function DeFiPage() {
   const { address, isConnected } = useAccount()
   const { positions, summary, protocolBreakdown } = useDeFiPositions()
+  const [activeTab, setActiveTab] = useState<'positions' | 'insights' | 'analytics' | 'optimizer' | 'manual'>('positions')
 
   if (!isConnected) {
     return (
@@ -185,11 +191,96 @@ export default function DeFiPage() {
           </div>
         </div>
 
-        {/* Full DeFi Positions Display with Enhanced Styling */}
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <div className="flex items-center space-x-1 p-1 bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg">
+            <button
+              onClick={() => setActiveTab('positions')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                activeTab === 'positions'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+              }`}
+            >
+              <SparklesIcon className="w-5 h-5" />
+              <span>All Positions</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                activeTab === 'insights'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+              }`}
+            >
+              <ChartBarIcon className="w-5 h-5" />
+              <span>Portfolio Insights</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                activeTab === 'analytics'
+                  ? 'bg-orange-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+              }`}
+            >
+              <ChartPieIcon className="w-5 h-5" />
+              <span>Analytics</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('optimizer')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                activeTab === 'optimizer'
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }`}
+            >
+              <LightBulbIcon className="w-5 h-5" />
+              <span>Optimizer</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('manual')}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                activeTab === 'manual'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+              }`}
+            >
+              <PlusCircleIcon className="w-5 h-5" />
+              <span>Manual Positions</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
         <div className="group relative">
           <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-500"></div>
           <div className="relative bg-white/90 dark:bg-slate-800/90 backdrop-blur-2xl rounded-2xl border-0 shadow-2xl group-hover:shadow-3xl transition-all duration-500">
-            <DeFiPositions />
+            {activeTab === 'positions' && (
+              <div className="p-6">
+                <DeFiPositions />
+              </div>
+            )}
+            {activeTab === 'insights' && (
+              <div className="p-6">
+                <PortfolioInsights positions={positions} />
+              </div>
+            )}
+            {activeTab === 'analytics' && (
+              <div className="p-6">
+                <PortfolioAnalytics />
+              </div>
+            )}
+            {activeTab === 'optimizer' && (
+              <div className="p-6">
+                <YieldOptimizer />
+              </div>
+            )}
+            {activeTab === 'manual' && (
+              <div className="p-6">
+                <ManualPositions walletAddress={address} />
+              </div>
+            )}
           </div>
         </div>
       </main>

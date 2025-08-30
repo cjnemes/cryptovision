@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { DeFiPosition, TokenBalance } from '@/types';
 import { priceService } from '../prices';
+import { safeContractCall, withErrorHandling } from '../utils/error-handler';
 
 // GammaSwap constants for multiple networks - updated with complete contract addresses
 const GAMMASWAP_CONTRACTS = {
@@ -175,16 +176,16 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
           try {
             const stakingRouter = new ethers.Contract(contracts.StakingRouter, STAKING_ROUTER_ABI, provider);
             
-            // Try different methods to detect staking in StakingRouter
+            // Try different methods to detect staking in StakingRouter with safe contract calls
             const routerMethods = [
-              { name: 'stakedAmounts', fn: () => stakingRouter.stakedAmounts(walletAddress) },
-              { name: 'depositBalances-GS', fn: () => contracts.GS ? stakingRouter.depositBalances(walletAddress, contracts.GS) : Promise.resolve(0n) },
-              { name: 'depositBalances-EsGS', fn: () => contracts.EsGS ? stakingRouter.depositBalances(walletAddress, contracts.EsGS) : Promise.resolve(0n) },
+              { name: 'stakedAmounts', fn: () => safeContractCall(() => stakingRouter.stakedAmounts(walletAddress), 'gammaswap', 'stakedAmounts', contracts.StakingRouter) },
+              { name: 'depositBalances-GS', fn: () => contracts.GS ? safeContractCall(() => stakingRouter.depositBalances(walletAddress, contracts.GS), 'gammaswap', 'depositBalances', contracts.StakingRouter) : Promise.resolve(null) },
+              { name: 'depositBalances-EsGS', fn: () => contracts.EsGS ? safeContractCall(() => stakingRouter.depositBalances(walletAddress, contracts.EsGS), 'gammaswap', 'depositBalances', contracts.StakingRouter) : Promise.resolve(null) },
             ];
             
             for (const method of routerMethods) {
-              try {
-                const balance = await method.fn();
+              const balance = await method.fn();
+              if (balance !== null) {
                 console.log(`StakingRouter ${method.name} on ${network}: ${ethers.formatUnits(balance, 18)}`);
                 
                 if (balance > 0n) {
@@ -217,9 +218,9 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
                   };
                   positions.push(position);
                   console.log(`Found staking via StakingRouter ${method.name} on ${network}: ${stakedAmount} GS ($${stakedValue.toFixed(2)})`);
+                } else {
+                  console.debug(`StakingRouter ${method.name} on ${network}: 0 or failed`);
                 }
-              } catch (error) {
-                console.log(`StakingRouter ${method.name} failed on ${network}: ${error.message}`);
               }
             }
           } catch (error) {
@@ -232,16 +233,16 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
           const rewardTracker = new ethers.Contract(contracts.EsGS, REWARD_TRACKER_ABI, provider);
           
           try {
-            // Try multiple methods to detect staking
+            // Try multiple methods to detect staking with safe contract calls
             const methods = [
-              { name: 'stakedAmounts', fn: () => rewardTracker.stakedAmounts(walletAddress) },
-              { name: 'balanceOf', fn: () => rewardTracker.balanceOf(walletAddress) },
-              { name: 'averageStakedAmounts', fn: () => rewardTracker.averageStakedAmounts(walletAddress) },
+              { name: 'stakedAmounts', fn: () => safeContractCall(() => rewardTracker.stakedAmounts(walletAddress), 'gammaswap', 'stakedAmounts', contracts.EsGS) },
+              { name: 'balanceOf', fn: () => safeContractCall(() => rewardTracker.balanceOf(walletAddress), 'gammaswap', 'balanceOf', contracts.EsGS) },
+              { name: 'averageStakedAmounts', fn: () => safeContractCall(() => rewardTracker.averageStakedAmounts(walletAddress), 'gammaswap', 'averageStakedAmounts', contracts.EsGS) },
             ];
             
             for (const method of methods) {
-              try {
-                const stakedBalance = await method.fn();
+              const stakedBalance = await method.fn();
+              if (stakedBalance !== null) {
                 console.log(`EsGS ${method.name} on ${network}: ${ethers.formatUnits(stakedBalance, 18)}`);
                 
                 if (stakedBalance > 0n) {
@@ -249,13 +250,16 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
                   const gsPrice = await priceService.getPrice('GS') || priceService.getFallbackPrice('GS');
                   const stakedValue = stakedAmount * gsPrice;
 
-                  // Get claimable rewards
+                  // Get claimable rewards with safe contract call
                   let claimableRewards = 0;
-                  try {
-                    const claimableAmount = await rewardTracker.claimable(walletAddress);
+                  const claimableAmount = await safeContractCall(
+                    () => rewardTracker.claimable(walletAddress),
+                    'gammaswap',
+                    'claimable',
+                    contracts.EsGS
+                  );
+                  if (claimableAmount !== null) {
                     claimableRewards = parseFloat(ethers.formatUnits(claimableAmount, 18)) * gsPrice;
-                  } catch {
-                    console.log(`Could not fetch claimable rewards on ${network}`);
                   }
 
                   const position: DeFiPosition = {
@@ -285,9 +289,9 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
                   positions.push(position);
                   console.log(`GammaSwap EsGS ${network} via ${method.name}: ${stakedAmount} GS staked ($${stakedValue.toFixed(2)}), claimable: $${claimableRewards.toFixed(2)})`);
                   break; // Only add one position per EsGS contract
+                } else {
+                  console.debug(`EsGS ${method.name} on ${network}: 0 or failed`);
                 }
-              } catch (error) {
-                console.log(`EsGS ${method.name} failed on ${network}: ${error.message}`);
               }
             }
           } catch (error) {
@@ -300,26 +304,26 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
           try {
             const bonusTracker = new ethers.Contract(contracts.BonusTracker, REWARD_TRACKER_ABI, provider);
             
-            // Try all available methods to detect bonus staking
+            // Try all available methods to detect bonus staking with safe contract calls
             const bonusMethods = [
-              { name: 'stakedAmounts', fn: () => bonusTracker.stakedAmounts(walletAddress) },
-              { name: 'balanceOf', fn: () => bonusTracker.balanceOf(walletAddress) },
-              { name: 'averageStakedAmounts', fn: () => bonusTracker.averageStakedAmounts(walletAddress) },
+              { name: 'stakedAmounts', fn: () => safeContractCall(() => bonusTracker.stakedAmounts(walletAddress), 'gammaswap', 'stakedAmounts', contracts.BonusTracker) },
+              { name: 'balanceOf', fn: () => safeContractCall(() => bonusTracker.balanceOf(walletAddress), 'gammaswap', 'balanceOf', contracts.BonusTracker) },
+              { name: 'averageStakedAmounts', fn: () => safeContractCall(() => bonusTracker.averageStakedAmounts(walletAddress), 'gammaswap', 'averageStakedAmounts', contracts.BonusTracker) },
             ];
             
             let maxBonusBalance = 0n;
             let successfulMethod = '';
             
             for (const method of bonusMethods) {
-              try {
-                const balance = await method.fn();
+              const balance = await method.fn();
+              if (balance !== null) {
                 console.log(`BonusTracker ${method.name} on ${network}: ${ethers.formatUnits(balance, 18)}`);
                 if (balance > maxBonusBalance) {
                   maxBonusBalance = balance;
                   successfulMethod = method.name;
                 }
-              } catch (error) {
-                console.log(`BonusTracker ${method.name} failed on ${network}: ${error.message}`);
+              } else {
+                console.debug(`BonusTracker ${method.name} on ${network}: failed`);
               }
             }
             
@@ -328,13 +332,16 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
               const gsPrice = await priceService.getPrice('GS') || priceService.getFallbackPrice('GS');
               const stakedValue = stakedAmount * gsPrice;
 
-              // Get claimable rewards
+              // Get claimable rewards with safe contract call
               let claimableRewards = 0;
-              try {
-                const claimableAmount = await bonusTracker.claimable(walletAddress);
+              const claimableAmount = await safeContractCall(
+                () => bonusTracker.claimable(walletAddress),
+                'gammaswap',
+                'claimable',
+                contracts.BonusTracker
+              );
+              if (claimableAmount !== null) {
                 claimableRewards = parseFloat(ethers.formatUnits(claimableAmount, 18)) * gsPrice;
-              } catch {
-                console.log(`Could not fetch claimable rewards from BonusTracker on ${network}`);
               }
 
               const position: DeFiPosition = {
@@ -522,17 +529,20 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
     for (const [network, contracts] of Object.entries(GAMMASWAP_CONTRACTS)) {
       const provider = this.providers[network as keyof typeof this.providers];
 
-      // Check GS token balance with enhanced logging
+      // Check GS token balance with enhanced logging and safe contract calls
       if (contracts.GS) {
-        try {
-          const gsContract = new ethers.Contract(contracts.GS, ERC20_ABI, provider);
-          const [balance, symbol, decimals, name, totalSupply] = await Promise.all([
-            gsContract.balanceOf(walletAddress),
-            gsContract.symbol(),
-            gsContract.decimals(),
-            gsContract.name(),
-            gsContract.totalSupply(),
-          ]);
+        const gsContract = new ethers.Contract(contracts.GS, ERC20_ABI, provider);
+        const contractCalls = await Promise.all([
+          safeContractCall(() => gsContract.balanceOf(walletAddress), 'gammaswap', 'balanceOf', contracts.GS),
+          safeContractCall(() => gsContract.symbol(), 'gammaswap', 'symbol', contracts.GS),
+          safeContractCall(() => gsContract.decimals(), 'gammaswap', 'decimals', contracts.GS),
+          safeContractCall(() => gsContract.name(), 'gammaswap', 'name', contracts.GS),
+          safeContractCall(() => gsContract.totalSupply(), 'gammaswap', 'totalSupply', contracts.GS),
+        ]);
+
+        const [balance, symbol, decimals, name, totalSupply] = contractCalls;
+        
+        if (balance !== null && symbol && decimals !== null && name && totalSupply !== null) {
 
           console.log(`GS token info on ${network}: ${name} (${symbol}), total supply: ${ethers.formatUnits(totalSupply, decimals)}`);
           console.log(`User GS balance on ${network}: ${ethers.formatUnits(balance, decimals)} ${symbol}`);
@@ -567,8 +577,8 @@ export class EnhancedGammaswapIntegration implements GammaswapService {
 
             console.log(`GS balance on ${network}: ${balanceFormatted} GS ($${value.toFixed(2)})`);
           }
-        } catch (error) {
-          console.warn(`Error fetching GS balance on ${network}:`, error);
+        } else {
+          console.debug(`Failed to fetch GS token info on ${network}`);
         }
       }
 

@@ -1,10 +1,12 @@
 'use client';
 
 import { useDeFiPositions } from '@/hooks/useDeFiPositions';
+import { usePerformanceTracking } from '@/hooks/usePerformanceTracking';
 import { formatCurrency, formatPercent } from '@/lib/utils';
+import { formatPnL, formatPnLPercent, getPnLColorClass } from '@/lib/analytics/performance-tracker';
 import { DeFiPosition } from '@/types';
 import { useState } from 'react';
-import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronUpIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/outline';
 
 export function DeFiPositions() {
   const {
@@ -16,7 +18,15 @@ export function DeFiPositions() {
     hasMockData
   } = useDeFiPositions();
 
-  const [sortBy, setSortBy] = useState<'value' | 'apy' | 'protocol'>('value');
+  // Performance tracking
+  const {
+    performanceMetrics,
+    getPositionPnL,
+    getTotalPnL,
+    isLoading: isPnLLoading
+  } = usePerformanceTracking(positions, { autoRefresh: true });
+
+  const [sortBy, setSortBy] = useState<'value' | 'apy' | 'protocol' | 'pnl'>('value');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [filterProtocol, setFilterProtocol] = useState<string>('');
 
@@ -46,11 +56,16 @@ export function DeFiPositions() {
       case 'protocol':
         comparison = a.protocol.localeCompare(b.protocol);
         break;
+      case 'pnl':
+        const aPnL = getPositionPnL(a.id)?.unrealizedPnL || 0;
+        const bPnL = getPositionPnL(b.id)?.unrealizedPnL || 0;
+        comparison = aPnL - bPnL;
+        break;
     }
     return sortOrder === 'desc' ? -comparison : comparison;
   });
 
-  const handleSort = (field: 'value' | 'apy' | 'protocol') => {
+  const handleSort = (field: 'value' | 'apy' | 'protocol' | 'pnl') => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
     } else {
@@ -71,6 +86,21 @@ export function DeFiPositions() {
           <div className="w-full bg-blue-200/30 dark:bg-blue-700/20 rounded-full h-2">
             <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full" style={{ width: '100%' }}></div>
           </div>
+          
+          {/* P&L Indicator */}
+          {performanceMetrics && (
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">P&L</span>
+              <div className="text-right">
+                <div className={`text-sm font-bold ${getPnLColorClass(performanceMetrics.unrealizedPnL).text}`}>
+                  {formatPnL(performanceMetrics.unrealizedPnL)}
+                </div>
+                <div className={`text-xs ${getPnLColorClass(performanceMetrics.unrealizedPnLPercent).text}`}>
+                  {formatPnLPercent(performanceMetrics.unrealizedPnLPercent)}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="p-6 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-xl border border-emerald-200/50 dark:border-emerald-700/50 shadow-lg">
@@ -223,6 +253,17 @@ export function DeFiPositions() {
                 <th className="px-6 py-4 text-right text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Rewards
                 </th>
+                <th 
+                  className="px-6 py-4 text-right text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-600/30 transition-colors rounded-lg"
+                  onClick={() => handleSort('pnl')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>P&L</span>
+                    {sortBy === 'pnl' && (
+                      sortOrder === 'desc' ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronUpIcon className="h-3 w-3" />
+                    )}
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Status
                 </th>
@@ -230,7 +271,7 @@ export function DeFiPositions() {
             </thead>
             <tbody className="bg-white/50 dark:bg-slate-800/30 divide-y divide-slate-200/50 dark:divide-slate-600/30 backdrop-blur-xl">
               {sortedPositions.map((position) => (
-                <PositionTableRow key={position.id} position={position} />
+                <PositionTableRow key={position.id} position={position} getPositionPnL={getPositionPnL} />
               ))}
             </tbody>
           </table>
@@ -254,13 +295,20 @@ function getProtocolName(protocol: string): string {
     'mamo': 'Mamo',
     'thena': 'Thena Finance',
     'gammaswap': 'GammaSwap',
-    'morpho': 'Morpho'
+    'morpho': 'Morpho',
+    'seamless': 'Seamless Protocol',
+    'extra finance': 'Extra Finance',
+    'compound-v3': 'Compound III',
+    'compound': 'Compound III',
+    'beefy': 'Beefy Finance',
+    'beefy-finance': 'Beefy Finance',
+    'manual': 'Manual Position'
   };
-  return protocolNames[protocol] || protocol;
+  return protocolNames[protocol.toLowerCase()] || protocol;
 }
 
 function getProtocolIcon(protocol: string): string {
-  switch (protocol) {
+  switch (protocol.toLowerCase()) {
     case 'uniswap-v3':
       return '🦄';
     case 'aave':
@@ -283,6 +331,18 @@ function getProtocolIcon(protocol: string): string {
       return '♦️'; // Diamond for GammaSwap options protocol
     case 'morpho':
       return '🔵'; // Blue circle for Morpho lending protocol
+    case 'seamless':
+      return '🌊'; // Ocean wave for Seamless Protocol
+    case 'extra finance':
+      return '💰'; // Money bag for Extra Finance
+    case 'compound-v3':
+    case 'compound':
+      return '🏦'; // Bank for Compound III
+    case 'beefy':
+    case 'beefy-finance':
+      return '🐄'; // Cow for Beefy Finance
+    case 'manual':
+      return '📝'; // Memo for manual positions
     default:
       return '💎';
   }
@@ -349,7 +409,8 @@ function ProtocolSummaryCard({ protocol, data }: {
   );
 }
 
-function PositionTableRow({ position }: { position: DeFiPosition }) {
+function PositionTableRow({ position, getPositionPnL }: { position: DeFiPosition; getPositionPnL: (positionId: string) => any }) {
+  const positionPnL = getPositionPnL(position.id);
   const getTypeIcon = (type: string, protocol?: string) => {
     if (protocol === 'aerodrome' && type === 'staking') return '🏆'; // Special icon for veAERO
     if (protocol === 'mamo' && type === 'yield-farming') return '🤖'; // AI yield farming
@@ -378,6 +439,18 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
     if (protocol === 'mamo' && metadata?.isNativeToken) {
       return 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700/50';
     }
+    if (metadata?.isManualPosition) {
+      return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-700/50';
+    }
+    if (metadata?.isCompoundV3 && metadata?.isDebt) {
+      return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/50';
+    }
+    if (metadata?.isCompoundV3) {
+      return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/50';
+    }
+    if (metadata?.isBeefyVault) {
+      return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/50';
+    }
     return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/50';
   };
 
@@ -394,13 +467,31 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
     if (protocol === 'mamo' && metadata?.isNativeToken) {
       return 'MAMO Token';
     }
+    if (metadata?.isManualPosition) {
+      return 'Manual';
+    }
+    if (metadata?.isCompoundV3 && metadata?.isDebt) {
+      return 'Borrowing';
+    }
+    if (metadata?.isCompoundV3 && metadata?.positionType === 'supply') {
+      return 'Supplying';
+    }
+    if (metadata?.isCompoundV3 && metadata?.positionType === 'collateral') {
+      return 'Collateral';
+    }
+    if (metadata?.isBeefyVault) {
+      return 'Auto-Compound';
+    }
     return 'Active';
   };
 
-  // Special handling for veAERO positions
+  // Special handling for different position types
   const isVeAero = position.protocol === 'aerodrome' && position.type === 'staking' && position.metadata?.nftId;
   const isMamoStrategy = position.protocol === 'mamo' && position.metadata?.isStrategy;
   const isMamoToken = position.protocol === 'mamo' && position.metadata?.isNativeToken;
+  const isManualPosition = position.metadata?.isManualPosition;
+  const isCompoundV3 = position.metadata?.isCompoundV3;
+  const isBeefyVault = position.metadata?.isBeefyVault;
   
   let displayName: string;
   let displayTokens: string;
@@ -414,6 +505,34 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
   } else if (isMamoToken) {
     displayName = 'MAMO Token';
     displayTokens = 'Native AI Agent Token';
+  } else if (isManualPosition) {
+    displayName = position.metadata?.description || `${position.metadata?.protocol} ${position.type}`;
+    displayTokens = position.tokens.map(t => t.symbol).join(' / ');
+  } else if (isCompoundV3) {
+    const positionType = position.metadata?.positionType || position.type;
+    const market = position.metadata?.market || '';
+    const baseAsset = position.metadata?.baseAsset || '';
+    
+    if (positionType === 'supply') {
+      displayName = `Compound III Supply (${baseAsset})`;
+      displayTokens = `${position.tokens.map(t => t.symbol).join(' / ')} • Earning Interest`;
+    } else if (positionType === 'borrow') {
+      displayName = `Compound III Borrow (${baseAsset})`;
+      displayTokens = `${position.tokens.map(t => t.symbol).join(' / ')} • Debt Position`;
+    } else if (positionType === 'collateral') {
+      displayName = `Compound III Collateral`;
+      displayTokens = `${position.tokens.map(t => t.symbol).join(' / ')} • Backing ${baseAsset} Loan`;
+    } else {
+      displayName = `Compound III ${position.type}`;
+      displayTokens = position.tokens.map(t => t.symbol).join(' / ');
+    }
+  } else if (isBeefyVault) {
+    const vaultName = position.metadata?.vaultName || '';
+    const platformId = position.metadata?.platformId || 'DeFi';
+    const strategy = position.metadata?.strategy || 'Yield Optimization';
+    
+    displayName = `Beefy ${vaultName}`;
+    displayTokens = `${position.tokens.map(t => t.symbol).join(' / ')} • ${platformId} • Auto-Compound`;
   } else {
     displayName = `${getProtocolName(position.protocol)} ${position.type}`;
     displayTokens = position.tokens.map(t => t.symbol).join(' / ');
@@ -467,6 +586,21 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
             : '—'
           }
         </div>
+      </td>
+      
+      <td className="px-6 py-5 whitespace-nowrap text-right">
+        {positionPnL ? (
+          <div className="text-right">
+            <div className={`text-sm font-bold ${getPnLColorClass(positionPnL.unrealizedPnL).text}`}>
+              {formatPnL(positionPnL.unrealizedPnL)}
+            </div>
+            <div className={`text-xs ${getPnLColorClass(positionPnL.unrealizedPnLPercent).text}`}>
+              {formatPnLPercent(positionPnL.unrealizedPnLPercent)}
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm font-medium text-slate-400 dark:text-slate-500">—</div>
+        )}
       </td>
       
       <td className="px-6 py-5 whitespace-nowrap text-center">

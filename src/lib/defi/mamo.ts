@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { DeFiPosition, TokenBalance } from '@/types';
 import { priceService } from '../prices';
+import { safeContractCall, isExpectedError } from '../utils/error-handler';
 
 // Mamo protocol constants for Base network
 const MAMO_TOKEN_ADDRESS = '0x7300B37DfdfAb110d83290A29DfB31B1740219fE'; // MAMO token on Base
@@ -271,7 +272,10 @@ export class MamoPositionService implements MamoService {
             positions.push(position);
           }
         } catch (error) {
-          console.warn(`Error fetching strategy position ${strategyAddress}:`, error);
+          // Only log if it's not an expected error (contract doesn't exist, etc.)
+          if (!isExpectedError(error)) {
+            console.warn(`Error fetching strategy position ${strategyAddress}:`, error);
+          }
         }
       }
 
@@ -287,25 +291,44 @@ export class MamoPositionService implements MamoService {
     try {
       const strategyContract = new ethers.Contract(strategyAddress, MAMO_STRATEGY_ABI, this.provider);
 
-      const [userShares, assetAddress] = await Promise.all([
-        strategyContract.balanceOf(walletAddress),
-        strategyContract.asset(),
+      const contractCalls = await Promise.all([
+        safeContractCall(() => strategyContract.balanceOf(walletAddress), 'mamo', 'balanceOf', strategyAddress),
+        safeContractCall(() => strategyContract.asset(), 'mamo', 'asset', strategyAddress),
       ]);
 
-      if (userShares === 0n) {
+      const [userShares, assetAddress] = contractCalls;
+
+      if (userShares === null || userShares === 0n || !assetAddress) {
         return null;
       }
 
-      // Convert shares to underlying assets
-      const underlyingAssets = await strategyContract.convertToAssets(userShares);
+      // Convert shares to underlying assets using safe contract call
+      const underlyingAssets = await safeContractCall(
+        () => strategyContract.convertToAssets(userShares),
+        'mamo',
+        'convertToAssets',
+        strategyAddress
+      );
+
+      if (underlyingAssets === null) {
+        return null;
+      }
       
-      // Get asset token info
+      // Get asset token info using safe contract calls
       const assetContract = new ethers.Contract(assetAddress, MAMO_TOKEN_ABI, this.provider);
-      const [assetSymbol, assetDecimals, assetName] = await Promise.all([
-        assetContract.symbol(),
-        assetContract.decimals(),
-        assetContract.name(),
+      const assetCalls = await Promise.all([
+        safeContractCall(() => assetContract.symbol(), 'mamo', 'symbol', assetAddress),
+        safeContractCall(() => assetContract.decimals(), 'mamo', 'decimals', assetAddress),
+        safeContractCall(() => assetContract.name(), 'mamo', 'name', assetAddress),
       ]);
+
+      const [assetSymbol, assetDecimals, assetName] = assetCalls;
+
+      // Skip if we couldn't get essential asset info
+      if (!assetSymbol || !assetName || assetDecimals === null) {
+        console.debug(`Could not fetch asset metadata for ${assetAddress} in strategy ${strategyAddress}`);
+        return null;
+      }
 
       const assetAmount = parseFloat(ethers.formatUnits(underlyingAssets, assetDecimals));
       const assetPrice = await priceService.getPrice(assetSymbol) || 0;
@@ -338,7 +361,10 @@ export class MamoPositionService implements MamoService {
       };
 
     } catch (error) {
-      console.warn(`Error fetching strategy position ${strategyAddress}:`, error);
+      // Only log if it's not an expected error (contract doesn't exist, etc.)
+      if (!isExpectedError(error)) {
+        console.warn(`Error fetching strategy position ${strategyAddress}:`, error);
+      }
       return null;
     }
   }

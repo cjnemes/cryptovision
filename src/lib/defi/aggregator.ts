@@ -8,7 +8,13 @@ import { createThenaService } from './thena';
 import { createGammaswapService } from './gammaswap';
 import { createEnhancedGammaswapService } from './gammaswap-enhanced';
 import { createMorphoService } from './morpho';
+import { createAaveV3Service } from './aave-v3';
+import { createExtraFinanceService } from './extra-finance';
+import { compoundV3Integration } from './compound-v3';
+import { createBeefyService } from './beefy';
+import { createBridgeService } from './bridges';
 import { manualPositionsService } from '../manual-positions';
+import { globalCircuitBreaker, withPerformanceMonitoring, batchWithErrorHandling, withTimeout } from '../utils/error-handler';
 
 export interface DeFiAggregator {
   getAllPositions(walletAddress: string): Promise<DeFiPosition[]>;
@@ -25,6 +31,11 @@ export class DeFiPositionAggregator implements DeFiAggregator {
   private thenaService: any;
   private gammaswapService: any;
   private morphoService: any;
+  private aaveV3Service: any;
+  private extraFinanceService: any;
+  private compoundV3Service: any;
+  private beefyService: any;
+  private bridgeService: any;
 
   constructor(rpcUrl?: string) {
     // Use Alchemy RPC with API key if available
@@ -42,84 +53,130 @@ export class DeFiPositionAggregator implements DeFiAggregator {
     // Use enhanced GammaSwap service for better staking detection
     this.gammaswapService = createEnhancedGammaswapService();
     this.morphoService = createMorphoService();
+    this.aaveV3Service = createAaveV3Service();
+    this.extraFinanceService = createExtraFinanceService();
+    this.compoundV3Service = compoundV3Integration;
+    this.beefyService = createBeefyService();
+    this.bridgeService = createBridgeService();
   }
 
   async getAllPositions(walletAddress: string): Promise<DeFiPosition[]> {
-    try {
-      const allPositions: DeFiPosition[] = [];
+    return withPerformanceMonitoring(
+      async () => {
+        console.log(`Starting parallel DeFi position aggregation for ${walletAddress}...`);
+        
+        // Define all protocol operations with circuit breaker protection and timeout management
+        const protocolOperations = [
+          () => globalCircuitBreaker.execute(
+            'uniswap-v3',
+            () => withTimeout(() => this.uniswapV3Service.getAllPositions(walletAddress), 8000, 'Uniswap V3 fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'aerodrome',
+            () => withTimeout(() => this.aerodromeService.getPositions(walletAddress), 5000, 'Aerodrome fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'moonwell',
+            () => withTimeout(() => this.moonwellService.getPositions(walletAddress), 12000, 'Moonwell fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'mamo',
+            () => withTimeout(() => this.mamoService.getPositions(walletAddress), 5000, 'Mamo fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'thena',
+            () => withTimeout(() => this.thenaService.getPositions(walletAddress), 6000, 'Thena fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'gammaswap',
+            () => withTimeout(() => this.gammaswapService.getPositions(walletAddress), 8000, 'GammaSwap fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'morpho',
+            () => withTimeout(() => this.morphoService.getPositions(walletAddress), 5000, 'Morpho fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'aave-v3',
+            () => withTimeout(() => this.aaveV3Service.getPositions(walletAddress), 5000, 'Aave V3 fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'extra-finance',
+            () => withTimeout(() => this.extraFinanceService.getPositions(walletAddress), 5000, 'Extra Finance fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'compound-v3',
+            () => withTimeout(() => this.compoundV3Service.getPositions(walletAddress), 5000, 'Compound V3 fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'beefy',
+            () => withTimeout(() => this.beefyService.getPositions(walletAddress), 6000, 'Beefy Finance fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'manual-positions',
+            () => withTimeout(() => manualPositionsService.convertToDeFiPositions(walletAddress), 2000, 'Manual positions fetch timeout'),
+            []
+          ),
+          () => globalCircuitBreaker.execute(
+            'bridges',
+            () => withTimeout(() => this.bridgeService.getPositions(walletAddress), 8000, 'Bridge positions fetch timeout'),
+            []
+          )
+        ];
 
-      // Fetch Uniswap V3 positions (multichain with Base priority)
-      try {
-        const uniswapPositions = await this.uniswapV3Service.getAllPositions(walletAddress);
-        allPositions.push(...uniswapPositions);
-      } catch (error) {
-        console.warn('Failed to fetch Uniswap V3 positions:', error);
-      }
+        // Execute all protocol operations in parallel with timeout and error handling
+        const protocolNames = ['uniswap-v3', 'aerodrome', 'moonwell', 'mamo', 'thena', 'gammaswap', 'morpho', 'aave-v3', 'extra-finance', 'compound-v3', 'beefy', 'manual-positions', 'bridges'];
+        
+        console.log(`Starting parallel execution of ${protocolOperations.length} protocols...`);
+        
+        const positionResults = await batchWithErrorHandling(protocolOperations, {
+          maxRetries: 1,
+          retryDelay: 500,
+          silent: false, // Enable logging to see what's happening
+          fallbackValue: [] // Ensure we always get an array, never null
+        });
+        
+        console.log(`Batch execution completed. Results:`, positionResults.map((r, i) => ({ protocol: protocolNames[i], resultType: r === null ? 'null' : Array.isArray(r) ? `array[${r.length}]` : typeof r })));
 
-      // Fetch Aerodrome positions (Base network)
-      try {
-        const aerodromePositions = await this.aerodromeService.getPositions(walletAddress);
-        allPositions.push(...aerodromePositions);
-      } catch (error) {
-        console.warn('Failed to fetch Aerodrome positions:', error);
-      }
+        // Flatten results and filter out null/empty arrays
+        const allPositions: DeFiPosition[] = [];
+        let totalFetched = 0;
+        
+        positionResults.forEach((positions, index) => {
+          const protocolName = protocolNames[index];
+          
+          // Debug: log what we received for each protocol
+          console.debug(`Processing ${protocolName}: result type = ${positions === null ? 'null' : Array.isArray(positions) ? `array[${positions.length}]` : typeof positions}`);
+          
+          if (positions && Array.isArray(positions) && positions.length > 0) {
+            allPositions.push(...positions);
+            totalFetched += positions.length;
+            console.log(`✓ ${protocolName}: ${positions.length} positions`);
+          } else if (positions === null) {
+            console.warn(`⚠ ${protocolName}: returned null (operation failed)`);
+          } else if (Array.isArray(positions) && positions.length === 0) {
+            console.debug(`- ${protocolName}: 0 positions (empty array)`);
+          } else {
+            console.warn(`⚠ ${protocolName}: unexpected result type:`, typeof positions);
+          }
+        });
 
-      // Fetch Moonwell positions (Base network)
-      try {
-        const moonwellPositions = await this.moonwellService.getPositions(walletAddress);
-        allPositions.push(...moonwellPositions);
-      } catch (error) {
-        console.warn('Failed to fetch Moonwell positions:', error);
-      }
-
-      // Fetch Mamo positions (Base network)
-      try {
-        const mamoPositions = await this.mamoService.getPositions(walletAddress);
-        allPositions.push(...mamoPositions);
-      } catch (error) {
-        console.warn('Failed to fetch Mamo positions:', error);
-      }
-
-      // Fetch Thena positions (BSC network)
-      try {
-        const thenaPositions = await this.thenaService.getPositions(walletAddress);
-        allPositions.push(...thenaPositions);
-      } catch (error) {
-        console.warn('Failed to fetch Thena positions:', error);
-      }
-
-      // Fetch GammaSwap positions (Ethereum, Base, Arbitrum)
-      try {
-        const gammaswapPositions = await this.gammaswapService.getPositions(walletAddress);
-        allPositions.push(...gammaswapPositions);
-      } catch (error) {
-        console.warn('Failed to fetch GammaSwap positions:', error);
-      }
-
-      // Fetch Morpho positions (Base network)
-      try {
-        const morphoPositions = await this.morphoService.getPositions(walletAddress);
-        allPositions.push(...morphoPositions);
-      } catch (error) {
-        console.warn('Failed to fetch Morpho positions:', error);
-      }
-
-      // Fetch Manual positions
-      try {
-        const manualPositions = await manualPositionsService.convertToDeFiPositions(walletAddress);
-        allPositions.push(...manualPositions);
-        if (manualPositions.length > 0) {
-          console.log(`Added ${manualPositions.length} manual positions for ${walletAddress}`);
-        }
-      } catch (error) {
-        console.warn('Failed to fetch manual positions:', error);
-      }
-
-      return allPositions;
-    } catch (error) {
-      console.error('Error aggregating DeFi positions:', error);
-      return [];
-    }
+        console.log(`Parallel aggregation completed: ${totalFetched} positions from ${allPositions.length > 0 ? positionResults.filter(p => p && Array.isArray(p) && p.length > 0).length : 0} protocols`);
+        return allPositions;
+      },
+      'DeFi Position Aggregation',
+      5000 // Warn if takes more than 5 seconds
+    );
   }
 
   async getPositionsByProtocol(walletAddress: string, protocol: string): Promise<DeFiPosition[]> {
@@ -138,12 +195,21 @@ export class DeFiPositionAggregator implements DeFiAggregator {
         return await this.gammaswapService.getPositions(walletAddress);
       case 'morpho':
         return await this.morphoService.getPositions(walletAddress);
+      case 'aave-v3':
+        return await this.aaveV3Service.getPositions(walletAddress);
       case 'aave':
-        // return await this.getAavePositions(walletAddress);
-        return [];
+        // Legacy aave case, redirect to aave-v3
+        return await this.aaveV3Service.getPositions(walletAddress);
       case 'compound':
-        // return await this.getCompoundPositions(walletAddress);
-        return [];
+      case 'compound-v3':
+        return await this.compoundV3Service.getPositions(walletAddress);
+      case 'extra-finance':
+        return await this.extraFinanceService.getPositions(walletAddress);
+      case 'beefy':
+      case 'beefy-finance':
+        return await this.beefyService.getPositions(walletAddress);
+      case 'bridges':
+        return await this.bridgeService.getPositions(walletAddress);
       default:
         return [];
     }

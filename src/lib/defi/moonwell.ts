@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { DeFiPosition, MoonwellPosition, TokenBalance } from '@/types';
+import { safeContractCall, withErrorHandling, withPerformanceMonitoring } from '../utils/error-handler';
 
 // Moonwell contract addresses on Base
 const MOONWELL_COMPTROLLER = '0xfBb21d0380beE3312B33c4353c8936a0F13EF26C';
@@ -52,242 +53,205 @@ export class MoonwellIntegration implements MoonwellService {
   }
 
   async getPositions(walletAddress: string): Promise<DeFiPosition[]> {
-    try {
-      const positions: DeFiPosition[] = [];
+    return withPerformanceMonitoring(
+      async () => {
+        const positions: DeFiPosition[] = [];
 
-      // Get all Moonwell markets (mTokens)
-      const markets = await this.getMoonwellMarkets();
+        // Get all Moonwell markets with error handling and retries
+        const markets = await withErrorHandling(
+          () => this.getMoonwellMarkets(),
+          {
+            maxRetries: 3,
+            retryDelay: 1000,
+            logContext: 'Moonwell markets fetch',
+            fallbackValue: []
+          }
+        );
 
-      for (const market of markets) {
-        try {
-          const position = await this.getMarketPosition(walletAddress, market);
+        if (!markets || markets.length === 0) {
+          console.warn('No Moonwell markets found or market fetch failed');
+          return [];
+        }
+
+        // Process markets with rate limiting consideration
+        for (let i = 0; i < markets.length; i++) {
+          const market = markets[i];
+          
+          // Add small delay between market calls to avoid rate limiting
+          if (i > 0 && i % 5 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+          
+          const position = await withErrorHandling(
+            () => this.getMarketPosition(walletAddress, market),
+            {
+              maxRetries: 2,
+              retryDelay: 500,
+              logContext: `Moonwell ${market.symbol} position`,
+              fallbackValue: null,
+              silent: true
+            }
+          );
+
           if (position && (position.value > 0.01 || (position.metadata as MoonwellPosition)?.borrowed)) {
             positions.push(position);
           }
-        } catch (error) {
-          console.warn(`Failed to fetch Moonwell position for ${market.symbol}:`, error);
         }
-      }
 
-      return positions;
-    } catch (error) {
-      console.error('Error fetching Moonwell positions:', error);
-      return [];
-    }
+        return positions;
+      },
+      'Moonwell Position Fetch',
+      10000
+    );
   }
 
   private async getMarketPosition(
     walletAddress: string, 
     market: any
   ): Promise<DeFiPosition | null> {
-    try {
-      const mToken = new ethers.Contract(market.address, MTOKEN_ABI, this.provider);
-      
-      // Get user's mToken balance and borrow balance
-      const [
-        mTokenBalance,
-        borrowBalance,
-        exchangeRate,
-        supplyRate,
-        borrowRate
-      ] = await Promise.all([
-        mToken.balanceOf(walletAddress),
-        mToken.borrowBalanceStored(walletAddress),
-        mToken.exchangeRateStored(),
-        mToken.supplyRatePerTimestamp(),
-        mToken.borrowRatePerTimestamp(),
-      ]);
+    const mToken = new ethers.Contract(market.address, MTOKEN_ABI, this.provider);
+    
+    // Get user's mToken balance and borrow balance with safe contract calls
+    const [
+      mTokenBalance,
+      borrowBalance,
+      exchangeRate,
+      supplyRate,
+      borrowRate
+    ] = await Promise.all([
+      safeContractCall(() => mToken.balanceOf(walletAddress), 'moonwell', 'balanceOf', market.address),
+      safeContractCall(() => mToken.borrowBalanceStored(walletAddress), 'moonwell', 'borrowBalance', market.address),
+      safeContractCall(() => mToken.exchangeRateStored(), 'moonwell', 'exchangeRate', market.address),
+      safeContractCall(() => mToken.supplyRatePerTimestamp(), 'moonwell', 'supplyRate', market.address),
+      safeContractCall(() => mToken.borrowRatePerTimestamp(), 'moonwell', 'borrowRate', market.address),
+    ]);
 
-      // Calculate underlying token amounts using proper BigInt precision
-      // For Moonwell: balanceOfUnderlying = (mTokenBalance * exchangeRate) / 1e18
-      // The result is in underlying token units (e.g., wei for ETH, or base units for USDC)
-      const suppliedUnderlyingRaw = (mTokenBalance * exchangeRate) / BigInt(10 ** 18);
-      const suppliedUnderlying = parseFloat(ethers.formatUnits(suppliedUnderlyingRaw, market.decimals));
-      
-      // Debug logging for problematic calculations
-      if (suppliedUnderlying > 100000) { // More than $100k seems suspicious for most positions
-        console.warn(`Large Moonwell position detected:`, {
-          market: market.address,
-          symbol: market.underlyingSymbol,
-          mTokenBalance: mTokenBalance.toString(),
-          exchangeRate: exchangeRate.toString(),
-          suppliedUnderlyingRaw: suppliedUnderlyingRaw.toString(),
-          suppliedUnderlying,
-          decimals: market.decimals,
-          // Let's also check if we're using the right exchange rate format
-          exchangeRateFormatted: ethers.formatUnits(exchangeRate, 18),
-        });
-      }
-      
-      // Add debugging and cap unrealistic values
-      if (suppliedUnderlying > 1000000) { // More than $1M seems suspicious - likely a precision error
-        console.warn(`Capping large Moonwell position - likely precision error:`, {
-          market: market.address,
-          symbol: market.underlyingSymbol,
-          mTokenBalance: mTokenBalance.toString(),
-          exchangeRate: exchangeRate.toString(),
-          suppliedUnderlyingRaw: suppliedUnderlyingRaw.toString(),
-          suppliedUnderlying,
-          decimals: market.decimals
-        });
-        
-        // For now, skip positions with unrealistic values until we fix precision
-        // This prevents massive portfolio values from calculation errors
-        return null;
-      }
-      
-      const borrowedUnderlying = parseFloat(ethers.formatUnits(borrowBalance, market.decimals));
-
-      if (suppliedUnderlying === 0 && borrowedUnderlying === 0) {
-        return null;
-      }
-
-      // Calculate APYs (simplified conversion from per-timestamp rates)
-      const SECONDS_PER_YEAR = 365 * 24 * 60 * 60;
-      const supplyAPY = (Number(supplyRate) * SECONDS_PER_YEAR) / 1e18 * 100;
-      const borrowAPY = (Number(borrowRate) * SECONDS_PER_YEAR) / 1e18 * 100;
-
-      // Create asset token balance
-      const asset: TokenBalance = {
-        address: market.underlying,
-        symbol: market.underlyingSymbol,
-        name: market.underlyingName,
-        balance: suppliedUnderlying.toString(),
-        decimals: market.decimals,
-        price: market.price || 1,
-        value: suppliedUnderlying * (market.price || 1),
-      };
-
-      // Calculate net position value
-      const suppliedValue = suppliedUnderlying * (market.price || 1);
-      const borrowedValue = borrowedUnderlying * (market.price || 1);
-      const netValue = suppliedValue - borrowedValue;
-
-      const moonwellPosition: MoonwellPosition = {
-        market: market.address,
-        asset,
-        supplied: suppliedUnderlying > 0 ? suppliedUnderlying.toString() : undefined,
-        borrowed: borrowedUnderlying > 0 ? borrowedUnderlying.toString() : undefined,
-        supplyAPY,
-        borrowAPY: borrowedUnderlying > 0 ? borrowAPY : undefined,
-        collateralFactor: market.collateralFactor || 0.75,
-        isCollateral: suppliedUnderlying > 0,
-        rewardsEarned: await this.getRewardsEarned(walletAddress),
-      };
-
-      // Calculate net APY based on position
-      let netAPY = 0;
-      if (suppliedUnderlying > 0 && borrowedUnderlying === 0) {
-        netAPY = supplyAPY; // Pure supply position
-      } else if (suppliedUnderlying > 0 && borrowedUnderlying > 0) {
-        // Leveraged position
-        const supplyWeight = suppliedValue / (suppliedValue + borrowedValue);
-        const borrowWeight = borrowedValue / (suppliedValue + borrowedValue);
-        netAPY = (supplyAPY * supplyWeight) - (borrowAPY * borrowWeight);
-      } else if (borrowedUnderlying > 0) {
-        netAPY = -borrowAPY; // Pure borrow position (negative APY)
-      }
-
-      const claimableRewards = moonwellPosition.rewardsEarned?.reduce(
-        (sum, reward) => sum + reward.value, 0
-      ) || 0;
-
-      return {
-        id: `moonwell-${market.address}`,
-        protocol: 'moonwell',
-        type: 'lending',
-        tokens: [asset],
-        apy: netAPY,
-        value: Math.max(netValue, 0), // Don't show negative values for borrowed positions
-        claimable: claimableRewards,
-        metadata: moonwellPosition,
-      };
-    } catch (error) {
-      console.error('Error getting Moonwell position details:', error);
+    // If any critical call failed, skip this market
+    if (mTokenBalance === null || borrowBalance === null || exchangeRate === null) {
+      console.debug(`Skipping Moonwell market ${market.symbol} due to failed contract calls`);
       return null;
     }
+
+    // Calculate underlying token amounts using proper BigInt precision
+    // For Moonwell: balanceOfUnderlying = (mTokenBalance * exchangeRate) / 1e18
+    // The result is in underlying token units (e.g., wei for ETH, or base units for USDC)
+    const suppliedUnderlyingRaw = (mTokenBalance * exchangeRate) / BigInt(10 ** 18);
+    const suppliedUnderlying = parseFloat(ethers.formatUnits(suppliedUnderlyingRaw, market.decimals));
+    
+    // Debug logging for problematic calculations
+    if (suppliedUnderlying > 100000) { // More than $100k seems suspicious for most positions
+      console.warn(`Large Moonwell position detected:`, {
+        market: market.address,
+        symbol: market.underlyingSymbol,
+        mTokenBalance: mTokenBalance.toString(),
+        exchangeRate: exchangeRate.toString(),
+        suppliedUnderlyingRaw: suppliedUnderlyingRaw.toString(),
+        suppliedUnderlying,
+        decimals: market.decimals,
+        // Let's also check if we're using the right exchange rate format
+        exchangeRateFormatted: ethers.formatUnits(exchangeRate, 18),
+      });
+      }
+    
+    // Add debugging and cap unrealistic values
+    if (suppliedUnderlying > 1000000) { // More than $1M seems suspicious - likely a precision error
+      console.warn(`Capping large Moonwell position - likely precision error:`, {
+        market: market.address,
+        symbol: market.underlyingSymbol,
+        mTokenBalance: mTokenBalance.toString(),
+        exchangeRate: exchangeRate.toString(),
+        suppliedUnderlyingRaw: suppliedUnderlyingRaw.toString(),
+        suppliedUnderlying,
+        decimals: market.decimals
+      });
+      
+      // For now, skip positions with unrealistic values until we fix precision
+      // This prevents massive portfolio values from calculation errors
+      return null;
+    }
+    
+    const borrowedUnderlying = parseFloat(ethers.formatUnits(borrowBalance, market.decimals));
+
+    if (suppliedUnderlying === 0 && borrowedUnderlying === 0) {
+      return null;
+    }
+
+    // Calculate APYs (simplified conversion from per-timestamp rates)
+    const SECONDS_PER_YEAR = 365 * 24 * 60 * 60;
+    const supplyAPY = (Number(supplyRate) * SECONDS_PER_YEAR) / 1e18 * 100;
+    const borrowAPY = (Number(borrowRate) * SECONDS_PER_YEAR) / 1e18 * 100;
+
+    // Create asset token balance
+    const asset: TokenBalance = {
+      address: market.underlying,
+      symbol: market.underlyingSymbol,
+      name: market.underlyingName,
+      balance: suppliedUnderlying.toString(),
+      decimals: market.decimals,
+      price: market.price || 1,
+      value: suppliedUnderlying * (market.price || 1),
+    };
+
+    // Calculate net position value
+    const suppliedValue = suppliedUnderlying * (market.price || 1);
+    const borrowedValue = borrowedUnderlying * (market.price || 1);
+    const netValue = suppliedValue - borrowedValue;
+
+    const moonwellPosition: MoonwellPosition = {
+      market: market.address,
+      asset,
+      supplied: suppliedUnderlying > 0 ? suppliedUnderlying.toString() : undefined,
+      borrowed: borrowedUnderlying > 0 ? borrowedUnderlying.toString() : undefined,
+      supplyAPY,
+      borrowAPY: borrowedUnderlying > 0 ? borrowAPY : undefined,
+      collateralFactor: market.collateralFactor || 0.75,
+      isCollateral: suppliedUnderlying > 0,
+      rewardsEarned: await this.getRewardsEarned(walletAddress),
+    };
+
+    // Calculate net APY based on position
+    let netAPY = 0;
+    if (suppliedUnderlying > 0 && borrowedUnderlying === 0) {
+      netAPY = supplyAPY; // Pure supply position
+    } else if (suppliedUnderlying > 0 && borrowedUnderlying > 0) {
+      // Leveraged position
+      const supplyWeight = suppliedValue / (suppliedValue + borrowedValue);
+      const borrowWeight = borrowedValue / (suppliedValue + borrowedValue);
+      netAPY = (supplyAPY * supplyWeight) - (borrowAPY * borrowWeight);
+    } else if (borrowedUnderlying > 0) {
+      netAPY = -borrowAPY; // Pure borrow position (negative APY)
+    }
+
+    const claimableRewards = moonwellPosition.rewardsEarned?.reduce(
+      (sum, reward) => sum + reward.value, 0
+    ) || 0;
+
+    return {
+      id: `moonwell-${market.address}`,
+      protocol: 'moonwell',
+      type: 'lending',
+      tokens: [asset],
+      apy: netAPY,
+      value: Math.max(netValue, 0), // Don't show negative values for borrowed positions
+      claimable: claimableRewards,
+      metadata: moonwellPosition,
+    };
+  } catch (error) {
+    console.error('Error getting Moonwell position details:', error);
+    return null;
   }
 
   private async getMoonwellMarkets() {
-    try {
-      // Fetch all markets from the Moonwell comptroller
-      const allMarkets = await this.comptroller.getAllMarkets();
-      console.log('Found Moonwell markets:', allMarkets.length);
-      
-      const markets = [];
-      
-      for (const marketAddress of allMarkets) {
-        try {
-          const mToken = new ethers.Contract(marketAddress, MTOKEN_ABI, this.provider);
-          
-          // Get market details
-          const [underlying, symbol, decimals] = await Promise.all([
-            mToken.underlying().catch(() => ethers.ZeroAddress), // Native ETH has no underlying
-            mToken.symbol(),
-            mToken.decimals().catch(() => 18)
-          ]);
-          
-          // Get underlying token details if it exists
-          let underlyingSymbol = 'ETH';
-          let underlyingName = 'Ethereum';
-          let underlyingDecimals = 18;
-          let price = 4500; // Default ETH price
-          
-          if (underlying !== ethers.ZeroAddress) {
-            try {
-              const underlyingToken = new ethers.Contract(underlying, [
-                'function symbol() view returns (string)',
-                'function name() view returns (string)',
-                'function decimals() view returns (uint8)'
-              ], this.provider);
-              
-              const [uSymbol, uName, uDecimals] = await Promise.all([
-                underlyingToken.symbol(),
-                underlyingToken.name(), 
-                underlyingToken.decimals()
-              ]);
-              
-              underlyingSymbol = uSymbol;
-              underlyingName = uName;
-              underlyingDecimals = uDecimals;
-              
-              // Set mock prices for common tokens
-              const priceMap: Record<string, number> = {
-                'USDC': 1,
-                'USDbC': 1,
-                'cbETH': 4800, // cbETH typically trades at premium to ETH
-                'WETH': 4500,
-                'DAI': 1,
-                'WBTC': 67000
-              };
-              price = priceMap[uSymbol] || 1;
-              
-            } catch (error) {
-              console.warn(`Failed to get underlying token details for ${marketAddress}:`, error);
-            }
-          }
-          
-          markets.push({
-            address: marketAddress,
-            symbol,
-            underlying,
-            underlyingSymbol,
-            underlyingName,
-            decimals: underlyingDecimals,
-            price,
-            collateralFactor: 0.8 // Default, could fetch from comptroller
-          });
-          
-        } catch (error) {
-          console.warn(`Failed to get market details for ${marketAddress}:`, error);
-        }
-      }
-      
-      console.log('Processed markets:', markets.map(m => `${m.symbol} (${m.underlyingSymbol})`));
-      return markets;
-      
-    } catch (error) {
-      console.error('Failed to fetch Moonwell markets from comptroller:', error);
+    // Fetch all markets from the Moonwell comptroller with error handling
+    const allMarkets = await safeContractCall(
+      () => this.comptroller.getAllMarkets(),
+      'moonwell',
+      'getAllMarkets',
+      MOONWELL_COMPTROLLER
+    );
+
+    if (!allMarkets || allMarkets.length === 0) {
+      console.warn('Failed to fetch Moonwell markets from comptroller, using fallback');
       
       // Fallback to known markets if comptroller call fails
       return [
@@ -303,6 +267,84 @@ export class MoonwellIntegration implements MoonwellService {
         }
       ];
     }
+
+    console.log('Found Moonwell markets:', allMarkets.length);
+    
+    const markets = [];
+    
+    for (let i = 0; i < allMarkets.length; i++) {
+      const marketAddress = allMarkets[i];
+      
+      // Add delay every few calls to avoid rate limiting
+      if (i > 0 && i % 3 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      const mToken = new ethers.Contract(marketAddress, MTOKEN_ABI, this.provider);
+      
+      // Get market details with safe contract calls
+      const [underlying, symbol, decimals] = await Promise.all([
+        safeContractCall(() => mToken.underlying(), 'moonwell', 'underlying', marketAddress, { fallbackValue: ethers.ZeroAddress }),
+        safeContractCall(() => mToken.symbol(), 'moonwell', 'symbol', marketAddress),
+        safeContractCall(() => mToken.decimals(), 'moonwell', 'decimals', marketAddress, { fallbackValue: 18 })
+      ]);
+
+      if (!symbol) {
+        console.warn(`Failed to get symbol for market ${marketAddress}, skipping`);
+        continue;
+      }
+          
+      // Get underlying token details if it exists
+      let underlyingSymbol = 'ETH';
+      let underlyingName = 'Ethereum';
+      let underlyingDecimals = 18;
+      let price = 4500; // Default ETH price
+      
+      if (underlying && underlying !== ethers.ZeroAddress) {
+        const underlyingToken = new ethers.Contract(underlying, [
+          'function symbol() view returns (string)',
+          'function name() view returns (string)',
+          'function decimals() view returns (uint8)'
+        ], this.provider);
+        
+        const [uSymbol, uName, uDecimals] = await Promise.all([
+          safeContractCall(() => underlyingToken.symbol(), 'moonwell', 'underlying.symbol', underlying),
+          safeContractCall(() => underlyingToken.name(), 'moonwell', 'underlying.name', underlying),
+          safeContractCall(() => underlyingToken.decimals(), 'moonwell', 'underlying.decimals', underlying, { fallbackValue: 18 })
+        ]);
+        
+        if (uSymbol) {
+          underlyingSymbol = uSymbol;
+          underlyingName = uName || underlyingSymbol;
+          underlyingDecimals = uDecimals || 18;
+          
+          // Set mock prices for common tokens
+          const priceMap: Record<string, number> = {
+            'USDC': 1,
+            'USDbC': 1,
+            'cbETH': 4800, // cbETH typically trades at premium to ETH
+            'WETH': 4500,
+            'DAI': 1,
+            'WBTC': 67000
+          };
+          price = priceMap[uSymbol] || 1;
+        }
+      }
+      
+      markets.push({
+        address: marketAddress,
+        symbol,
+        underlying,
+        underlyingSymbol,
+        underlyingName,
+        decimals: underlyingDecimals,
+        price,
+        collateralFactor: 0.8 // Default, could fetch from comptroller
+      });
+    }
+    
+    console.log('Processed markets:', markets.map(m => `${m.symbol} (${m.underlyingSymbol})`));
+    return markets;
   }
 
   private async getRewardsEarned(walletAddress: string): Promise<TokenBalance[] | undefined> {
