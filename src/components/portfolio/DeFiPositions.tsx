@@ -250,7 +250,11 @@ function getProtocolName(protocol: string): string {
     'compound': 'Compound',
     'curve': 'Curve',
     'aerodrome': 'Aerodrome',
-    'moonwell': 'Moonwell'
+    'moonwell': 'Moonwell',
+    'mamo': 'Mamo',
+    'thena': 'Thena Finance',
+    'gammaswap': 'GammaSwap',
+    'morpho': 'Morpho'
   };
   return protocolNames[protocol] || protocol;
 }
@@ -271,6 +275,14 @@ function getProtocolIcon(protocol: string): string {
       return '🛩️';
     case 'moonwell':
       return '🌙';
+    case 'mamo':
+      return '🤖'; // AI robot emoji for Mamo AI agent
+    case 'thena':
+      return '⚡'; // Lightning bolt for Thena Finance
+    case 'gammaswap':
+      return '♦️'; // Diamond for GammaSwap options protocol
+    case 'morpho':
+      return '🔵'; // Blue circle for Morpho lending protocol
     default:
       return '💎';
   }
@@ -340,11 +352,15 @@ function ProtocolSummaryCard({ protocol, data }: {
 function PositionTableRow({ position }: { position: DeFiPosition }) {
   const getTypeIcon = (type: string, protocol?: string) => {
     if (protocol === 'aerodrome' && type === 'staking') return '🏆'; // Special icon for veAERO
+    if (protocol === 'mamo' && type === 'yield-farming') return '🤖'; // AI yield farming
+    if (protocol === 'mamo' && type === 'token') return '🎯'; // MAMO token
     switch (type) {
       case 'liquidity': return '💧';
       case 'lending': return '🏦';
       case 'staking': return '🔐';
       case 'farming': return '🌾';
+      case 'yield-farming': return '🌱';
+      case 'token': return '🪙';
       default: return '💎';
     }
   };
@@ -356,6 +372,12 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
     if (protocol === 'aerodrome' && metadata?.nftId) {
       return 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700/50';
     }
+    if (protocol === 'mamo' && metadata?.isStrategy) {
+      return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700/50';
+    }
+    if (protocol === 'mamo' && metadata?.isNativeToken) {
+      return 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700/50';
+    }
     return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/50';
   };
 
@@ -366,13 +388,36 @@ function PositionTableRow({ position }: { position: DeFiPosition }) {
     if (protocol === 'aerodrome' && metadata?.nftId) {
       return `NFT #${metadata.nftId}`;
     }
+    if (protocol === 'mamo' && metadata?.isStrategy) {
+      return 'AI Managed';
+    }
+    if (protocol === 'mamo' && metadata?.isNativeToken) {
+      return 'MAMO Token';
+    }
     return 'Active';
   };
 
   // Special handling for veAERO positions
   const isVeAero = position.protocol === 'aerodrome' && position.type === 'staking' && position.metadata?.nftId;
-  const displayName = isVeAero ? position.metadata?.displayName : `${getProtocolName(position.protocol)} ${position.type}`;
-  const displayTokens = isVeAero ? position.metadata?.displayDescription : position.tokens.map(t => t.symbol).join(' / ');
+  const isMamoStrategy = position.protocol === 'mamo' && position.metadata?.isStrategy;
+  const isMamoToken = position.protocol === 'mamo' && position.metadata?.isNativeToken;
+  
+  let displayName: string;
+  let displayTokens: string;
+  
+  if (isVeAero) {
+    displayName = position.metadata?.displayName || `${getProtocolName(position.protocol)} ${position.type}`;
+    displayTokens = position.metadata?.displayDescription || position.tokens.map(t => t.symbol).join(' / ');
+  } else if (isMamoStrategy) {
+    displayName = position.metadata?.description || 'Mamo AI Strategy';
+    displayTokens = `${position.tokens.map(t => t.symbol).join(' / ')} • Auto-Compound`;
+  } else if (isMamoToken) {
+    displayName = 'MAMO Token';
+    displayTokens = 'Native AI Agent Token';
+  } else {
+    displayName = `${getProtocolName(position.protocol)} ${position.type}`;
+    displayTokens = position.tokens.map(t => t.symbol).join(' / ');
+  }
 
   return (
     <tr className="hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-all duration-200">

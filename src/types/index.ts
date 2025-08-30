@@ -20,13 +20,13 @@ export interface TokenBalance {
 
 export interface DeFiPosition {
   id: string;
-  protocol: 'uniswap-v3' | 'aave' | 'compound' | 'lido' | 'curve' | 'aerodrome' | 'moonwell';
-  type: 'lending' | 'liquidity' | 'staking' | 'farming';
+  protocol: 'uniswap-v3' | 'aave' | 'compound' | 'lido' | 'curve' | 'aerodrome' | 'moonwell' | 'gammaswap' | 'mamo' | 'thena' | 'morpho' | 'manual';
+  type: 'lending' | 'liquidity' | 'staking' | 'farming' | 'yield-farming' | 'token' | 'liquidity-pool';
   tokens: TokenBalance[];
   apy: number;
   value: number;
   claimable?: number;
-  metadata?: UniswapV3Position | AavePosition | StakingPosition | AerodromePosition | MoonwellPosition;
+  metadata?: UniswapV3Position | AavePosition | StakingPosition | AerodromePosition | MoonwellPosition | ManualPosition | Record<string, any>;
 }
 
 export interface UniswapV3Position {
@@ -115,4 +115,26 @@ export interface TransactionData {
   token?: TokenBalance;
   timestamp: number;
   type: 'send' | 'receive' | 'swap' | 'deposit' | 'withdraw';
+}
+
+// Manual positions system types
+export interface ManualPosition {
+  id: string;
+  walletAddress: string;
+  protocol: string;
+  type: 'lending' | 'liquidity' | 'staking' | 'farming' | 'yield-farming' | 'token' | 'liquidity-pool';
+  description: string;
+  tokens: {
+    address: string;
+    symbol: string;
+    name: string;
+    amount: string;
+    decimals: number;
+  }[];
+  apy?: number;
+  claimableAmount?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+  isActive: boolean;
 }

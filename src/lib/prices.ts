@@ -76,6 +76,10 @@ class PriceService {
       'stETH': 'staked-ether',
       'rETH': 'rocket-pool-eth',
       'WELL': 'moonwell',
+      'MAMO': 'mamo',
+      'THE': 'thena',
+      'GS': 'gammaswap',
+      'MORPHO': 'morpho',
     };
     
     return mapping[symbol.toUpperCase()] || null;
@@ -131,6 +135,10 @@ class PriceService {
       'stETH': 4480,
       'rETH': 4600,
       'WELL': 0.05,
+      'MAMO': 0.1206, // Updated from CoinGecko API
+      'THE': 0.3466, // Updated from CoinGecko API (Thena Finance)
+      'GS': 0.06, // GammaSwap token fallback price
+      'MORPHO': 2.15, // Morpho token fallback price
     };
     
     return fallbackPrices[symbol.toUpperCase()] || 1.0;

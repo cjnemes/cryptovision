@@ -31,6 +31,10 @@ const TOKEN_ID_MAP: Record<string, string> = {
   'stETH': 'staked-ether',
   'rETH': 'rocket-pool-eth',
   'WELL': 'moonwell',
+  'MAMO': 'mamo',
+  'THE': 'thena',
+  'GS': 'gammaswap',
+  'MORPHO': 'morpho',
 }
 
 export async function POST(request: NextRequest) {
